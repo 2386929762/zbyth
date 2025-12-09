@@ -933,9 +933,11 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="指标">指标</SelectItem>
+                                <SelectItem value="度量">度量</SelectItem>
                                 <SelectItem value="维度">维度</SelectItem>
                                 <SelectItem value="普通">普通</SelectItem>
+                                 <SelectItem value="指标编号">指标编号</SelectItem>
+                                  <SelectItem value="指标名称">指标名称</SelectItem>
                               </SelectContent>
                             </Select>
                           </TableCell>
