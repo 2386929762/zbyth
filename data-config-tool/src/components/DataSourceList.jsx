@@ -50,15 +50,24 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
     driver: ''
   })
 
+  const waitForSdk = useCallback(async (timeout = 6000, interval = 200) => {
+    const start = Date.now()
+    while (Date.now() - start < timeout) {
+      if (isSdkAvailable()) return true
+      await new Promise(resolve => setTimeout(resolve, interval))
+    }
+    throw new Error('SDK 未就绪，请稍后重试')
+  }, [])
+
   // 加载数据源列表
   const loadDataSources = useCallback(async () => {
     setLoading(true)
     try {
-      if (isSdkAvailable()) {
-        const result = await queryDataSourceList()
-        setDataSources(result.list || [])
-        console.log('[DataSourceList] 从 SDK 加载数据源:', result.list)
-      }
+      await waitForSdk()
+      const result = await queryDataSourceList()
+      setDataSources(result.list || [])
+      hasLoadedRef.current = true
+      console.log('[DataSourceList] 从 SDK 加载数据源:', result.list)
     } catch (error) {
       console.error('[DataSourceList] 加载数据源失败:', error)
       alert('加载数据源失败: ' + error.message)
@@ -66,7 +75,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // 移除 setDataSources 依赖，因为它是稳定的 setState 函数
+  }, [setDataSources, waitForSdk])
 
   // 用 useRef 防止重复加载
   const hasLoadedRef = React.useRef(false)
@@ -75,14 +84,12 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
   useEffect(() => {
     const handleSdkLoggedIn = () => {
       if (hasLoadedRef.current) return
-      hasLoadedRef.current = true
       console.log('[DataSourceList] SDK 已登录，开始加载数据')
       loadDataSources()
     }
 
     // 如果已经登录，直接加载
     if (window.sdkLoggedIn && !hasLoadedRef.current) {
-      hasLoadedRef.current = true
       loadDataSources()
     }
 
