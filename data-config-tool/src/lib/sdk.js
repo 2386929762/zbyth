@@ -94,7 +94,7 @@ export const saveDataSource = async (dataSource) => {
 
   try {
     const config = getConfig();
-    
+
     // 构建 formData，前端字段 -> 后端字段
     const formData = {
       '数据源名称': dataSource.name,
@@ -310,10 +310,10 @@ export const saveTable = async (table) => {
 
   try {
     const config = getConfig();
-    
+
     // 构建表结构数据
     const tableStructureArray = buildTableStructure(table.fields);
-    
+
     // 构建 formData，前端字段 -> 后端字段
     const formData = {
       '模式名': table.schema,
@@ -336,10 +336,10 @@ export const saveTable = async (table) => {
       formData
     };
 
-    console.log('[SDK] 保存表参数:', params);
-    console.log('[SDK] 表结构json:', formData['表结构json']);
+    // console.log('[SDK] 保存表参数:', params);
+    // console.log('[SDK] 表结构json:', formData['表结构json']);
     const result = await sdk.api.callButton(params);
-    console.log('[SDK] 保存表结果:', result);
+    // console.log('[SDK] 保存表结果:', result);
     return result;
   } catch (error) {
     console.error('[SDK] 保存表失败:', error);

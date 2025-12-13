@@ -4,7 +4,6 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { DataSourceList } from '@/components/DataSourceList'
 import { TableManagement } from '@/components/TableManagement'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Button } from '@/components/ui/button'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import './App.css'
 
@@ -17,7 +16,7 @@ function App() {
   // 当数据源更新时,同步更新openTabs中的数据
   const handleSetDataSources = (newDataSources) => {
     setDataSources(newDataSources)
-    
+
     // 更新openTabs中的数据源信息
     if (openTabs.length > 0) {
       const updatedTabs = openTabs.map(tab => {
@@ -41,7 +40,7 @@ function App() {
     e.stopPropagation()
     const newTabs = openTabs.filter(tab => tab.id !== tabId)
     setOpenTabs(newTabs)
-    
+
     // 如果关闭的是当前激活的tab，切换到下一个tab
     if (activeTab === tabId.toString()) {
       if (newTabs.length > 0) {
@@ -87,23 +86,24 @@ function App() {
             </div>
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-              <TabsList className="w-full justify-start rounded-none border-b bg-background h-auto p-0">
+              <TabsList className="w-full justify-start rounded-none border-b bg-background h-auto p-0 gap-0">
                 {openTabs.map((tab) => (
-                  <TabsTrigger
-                    key={tab.id}
-                    value={tab.id.toString()}
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary relative group px-4 py-2"
-                  >
-                    {tab.name}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-4 w-4 p-0 ml-2 opacity-0 group-hover:opacity-100"
+                  <div key={tab.id} className="relative group inline-flex items-center">
+                    <TabsTrigger
+                      value={tab.id.toString()}
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary px-4 py-2 pr-8"
+                    >
+                      {tab.name}
+                    </TabsTrigger>
+                    <button
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 p-0 opacity-0 group-hover:opacity-100 inline-flex items-center justify-center hover:bg-accent hover:text-accent-foreground rounded-sm transition-opacity"
                       onClick={(e) => handleCloseTab(tab.id, e)}
+                      type="button"
+                      aria-label="关闭标签页"
                     >
                       <X className="h-3 w-3" />
-                    </Button>
-                  </TabsTrigger>
+                    </button>
+                  </div>
                 ))}
               </TabsList>
               {openTabs.map((tab) => (
