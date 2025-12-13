@@ -96,20 +96,20 @@ export function TableManagement({ selectedSource, tables, setTables }) {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  
+
   // 左侧表列表状态
   const [selectedSchema, setSelectedSchema] = useState('public')
   const [tableSearchText, setTableSearchText] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedTableName, setSelectedTableName] = useState(null)
   const [pageSize, setPageSize] = useState(50)
-  
+
   // 从 SDK 获取的数据
   const [schemas, setSchemas] = useState([])
   const [tablesFromDb, setTablesFromDb] = useState([])
   const [loadingSchemas, setLoadingSchemas] = useState(false)
   const [loadingDbTables, setLoadingDbTables] = useState(false)
-  
+
   // 右侧字段列表状态
   const [tableFields, setTableFields] = useState([])
   const [formData, setFormData] = useState({ chineseName: '', description: '' })
@@ -121,7 +121,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
   // 加载表列表
   const loadTables = useCallback(async () => {
     if (!selectedSource) return
-    
+
     setLoading(true)
     try {
       if (isSdkAvailable()) {
@@ -136,7 +136,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
     } finally {
       setLoading(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSource?.id]) // 只依赖 selectedSource.id
 
   // 选择数据源变化或 SDK 登录成功后加载数据
@@ -161,13 +161,13 @@ export function TableManagement({ selectedSource, tables, setTables }) {
     return () => {
       window.removeEventListener('sdkLoggedIn', handleSdkLoggedIn)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSource?.id])
 
   // 从 SDK 获取模式名列表
   const loadSchemas = async () => {
     if (!selectedSource || !isSdkAvailable()) return
-    
+
     setLoadingSchemas(true)
     try {
       const sdk = window.panelxSdk
@@ -181,10 +181,10 @@ export function TableManagement({ selectedSource, tables, setTables }) {
           regexMap: {}
         }
       }
-      
+
       const result = await sdk.api.callButton(params)
       console.log('[TableManagement] 获取schema列表:', result)
-      
+
       if (result && result.data && result.data.right) {
         // right 是二维数组，每个元素是 [schema_name]
         const schemaList = result.data.right.map(row => row[0])
@@ -203,7 +203,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
   // 从 SDK 获取表名列表
   const loadTablesFromDb = async (schemaName) => {
     if (!selectedSource || !isSdkAvailable() || !schemaName) return
-    
+
     setLoadingDbTables(true)
     try {
       const sdk = window.panelxSdk
@@ -217,10 +217,10 @@ export function TableManagement({ selectedSource, tables, setTables }) {
           regexMap: { '$scheme_name$': schemaName }
         }
       }
-      
+
       const result = await sdk.api.callButton(params)
       console.log('[TableManagement] 获取表列表:', result)
-      
+
       if (result && result.data && result.data.right) {
         // right 是二维数组，每个元素是 [table_name]
         const tableList = result.data.right.map(row => ({
@@ -262,15 +262,15 @@ export function TableManagement({ selectedSource, tables, setTables }) {
     if (isAddDialogOpen && selectedSchema) {
       loadTablesFromDb(selectedSchema)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSchema, isAddDialogOpen])
 
   // 过滤和分页表列表
-  const filteredTables = tablesFromDb.filter(table => 
+  const filteredTables = tablesFromDb.filter(table =>
     table.name.toLowerCase().includes(tableSearchText.toLowerCase()) ||
     table.comment.toLowerCase().includes(tableSearchText.toLowerCase())
   )
-  
+
   const totalPages = Math.ceil(filteredTables.length / pageSize)
   const paginatedTables = filteredTables.slice(
     (currentPage - 1) * pageSize,
@@ -280,7 +280,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
   // 选择表时打开表结构对话框
   const handleSelectTableRow = async (tableName) => {
     const tableInfo = tablesFromDb.find(t => t.name === tableName)
-    
+
     // 先设置基本信息并打开对话框
     setEditingTable({
       tableName: tableName,
@@ -291,7 +291,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
     })
     setLoadingDetail(true)
     setTimeout(() => setIsDetailDialogOpen(true), 0)
-    
+
     // 调用SDK获取表结构
     if (isSdkAvailable()) {
       try {
@@ -309,19 +309,19 @@ export function TableManagement({ selectedSource, tables, setTables }) {
             }
           }
         }
-        
+
         const result = await sdk.api.callButton(params)
         console.log('[TableManagement] 获取表结构:', result)
-        
+
         if (result && result.data && result.data.left && result.data.right) {
           // 根据 left 中的字段名建立索引映射
           const fieldIndexMap = {}
           result.data.left.forEach((field, index) => {
             fieldIndexMap[field.name] = index
           })
-          
+
           console.log('[TableManagement] 字段索引映射:', fieldIndexMap)
-          
+
           // 解析表结构数据
           const fields = result.data.right.map(row => {
             // 根据 left 中的字段名获取对应的值
@@ -330,7 +330,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
             const length = fieldIndexMap['长度'] !== undefined ? row[fieldIndexMap['长度']] : ''
             const precision = fieldIndexMap['精度'] !== undefined ? row[fieldIndexMap['精度']] : ''
             const comment = fieldIndexMap['字段中文名'] !== undefined ? row[fieldIndexMap['字段中文名']] : ''
-            
+
             return {
               name: fieldName || '',
               type: type || '',
@@ -342,7 +342,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
               selected: true
             }
           })
-          
+
           setEditingTable(prev => ({
             ...prev,
             fields: fields
@@ -384,21 +384,21 @@ export function TableManagement({ selectedSource, tables, setTables }) {
   }
 
   // 更新详情对话框中的字段选择状态
-  const updateDetailFieldSelection = (fieldName) => {
+  const updateDetailFieldSelection = (fieldIndex) => {
     setEditingTable(prev => ({
       ...prev,
-      fields: prev.fields.map(f => 
-        f.name === fieldName ? { ...f, selected: !f.selected } : f
+      fields: prev.fields.map((f, index) =>
+        index === fieldIndex ? { ...f, selected: !f.selected } : f
       )
     }))
   }
 
   // 更新详情对话框中的字段分类
-  const updateDetailFieldType = (fieldName, fieldType) => {
+  const updateDetailFieldType = (fieldIndex, fieldType) => {
     setEditingTable(prev => ({
       ...prev,
-      fields: prev.fields.map(f => 
-        f.name === fieldName ? { ...f, fieldType } : f
+      fields: prev.fields.map((f, index) =>
+        index === fieldIndex ? { ...f, fieldType } : f
       )
     }))
   }
@@ -421,13 +421,13 @@ export function TableManagement({ selectedSource, tables, setTables }) {
       alert('请选择一个表')
       return
     }
-    
+
     const selectedFields = tableFields.filter(f => f.selected)
     if (selectedFields.length === 0) {
       alert('请至少选择一个字段')
       return
     }
-    
+
     const tableInfo = mockTables.find(t => t.name === selectedTableName)
     const newTable = {
       id: Date.now(),
@@ -438,7 +438,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
       schema: selectedSchema,
       fields: selectedFields
     }
-    
+
     setTables([...tables, newTable])
     setIsAddDialogOpen(false)
   }
@@ -534,7 +534,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
           setTables([...tables, { ...tableData, id: Date.now() }])
         }
       }
-      
+
       // 延迟关闭对话框
       setTimeout(() => {
         setIsDetailDialogOpen(false)
@@ -584,9 +584,9 @@ export function TableManagement({ selectedSource, tables, setTables }) {
         )}
         <Table>
           <TableHeader>
-              <TableRow>
-                <TableHead>数据源名称</TableHead>
-                <TableHead>模式名</TableHead>
+            <TableRow>
+              <TableHead>数据源名称</TableHead>
+              <TableHead>模式名</TableHead>
               <TableHead>表名</TableHead>
               <TableHead>中文名</TableHead>
               <TableHead>描述</TableHead>
@@ -595,7 +595,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
           </TableHeader>
           <TableBody>
             {currentTables.map((table) => (
-              <TableRow 
+              <TableRow
                 key={table.id}
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleOpenDetailDialog(table)}
@@ -641,8 +641,8 @@ export function TableManagement({ selectedSource, tables, setTables }) {
               {/* 模式名选择 */}
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">模式名</Label>
-                <Select 
-                  value={selectedSchema} 
+                <Select
+                  value={selectedSchema}
                   onValueChange={(value) => {
                     setSelectedSchema(value)
                     setCurrentPage(1)
@@ -781,186 +781,186 @@ export function TableManagement({ selectedSource, tables, setTables }) {
             )}
             {editingTable && !loadingDetail && (
               <div className="space-y-6">
-              <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                  <Label>模式名</Label>
-                  <Input value={editingTable.schema} disabled className="bg-muted" />
+                    <Label>模式名</Label>
+                    <Input value={editingTable.schema} disabled className="bg-muted" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>表名</Label>
+                    <Input value={editingTable.tableName} disabled className="bg-muted" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>中文名</Label>
+                    <Input
+                      value={editingTable.chineseName}
+                      onChange={(e) => setEditingTable({ ...editingTable, chineseName: e.target.value })}
+                      placeholder="输入表的中文名称"
+                    />
+                  </div>
                 </div>
+
                 <div className="space-y-2">
-                  <Label>表名</Label>
-                  <Input value={editingTable.tableName} disabled className="bg-muted" />
-                </div>
-                <div className="space-y-2">
-                  <Label>中文名</Label>
+                  <Label>描述</Label>
                   <Input
-                    value={editingTable.chineseName}
-                    onChange={(e) => setEditingTable({ ...editingTable, chineseName: e.target.value })}
-                    placeholder="输入表的中文名称"
+                    value={editingTable.description}
+                    onChange={(e) => setEditingTable({ ...editingTable, description: e.target.value })}
+                    placeholder="输入表的描述信息"
                   />
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>描述</Label>
-                <Input
-                  value={editingTable.description}
-                  onChange={(e) => setEditingTable({ ...editingTable, description: e.target.value })}
-                  placeholder="输入表的描述信息"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>表结构</Label>
-                  <Button 
-                    size="sm" 
-                    onClick={() => {
-                      const newField = {
-                        name: '',
-                        type: 'VARCHAR',
-                        length: '',
-                        precision: '',
-                        comment: '',
-                        fieldType: '普通',
-                        selected: true,
-                        isNew: true
-                      }
-                      setEditingTable({
-                        ...editingTable,
-                        fields: [...(editingTable.fields || []), newField]
-                      })
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    添加字段
-                  </Button>
-                </div>
-                <div className="border rounded-md max-h-[300px] overflow-auto">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-background">
-                      <TableRow>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>表结构</Label>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const newField = {
+                          name: '',
+                          type: 'VARCHAR',
+                          length: '',
+                          precision: '',
+                          comment: '',
+                          fieldType: '普通',
+                          selected: true,
+                          isNew: true
+                        }
+                        setEditingTable({
+                          ...editingTable,
+                          fields: [...(editingTable.fields || []), newField]
+                        })
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      添加字段
+                    </Button>
+                  </div>
+                  <div className="border rounded-md max-h-[300px] overflow-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-background">
+                        <TableRow>
                           <TableHead className="w-[50px]">
                             <Checkbox
                               checked={editingTable?.fields?.every(f => f.selected) || false}
                               onCheckedChange={toggleSelectAllFields}
                             />
                           </TableHead>
-                        <TableHead>字段名</TableHead>
-                        <TableHead>类型</TableHead>
-                        <TableHead>长度</TableHead>
-                        <TableHead>精度</TableHead>
-                        <TableHead>字段中文名</TableHead>
-                        <TableHead className="w-[120px]">字段分类</TableHead>
-                        <TableHead className="w-[80px]">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {editingTable?.fields?.map((field, index) => (
-                        <TableRow key={`${editingTable.tableName}-${field.name}-${index}`}>
-                          <TableCell>
-                            <Checkbox
-                              checked={field.selected || false}
-                              onCheckedChange={() => updateDetailFieldSelection(index)}
-                            />
-                          </TableCell>
-                          <TableCell className="font-mono">
-                            <Input
-                              value={field.name}
-                              onChange={(e) => {
-                                const newFields = [...editingTable.fields]
-                                newFields[index] = { ...newFields[index], name: e.target.value }
-                                setEditingTable({ ...editingTable, fields: newFields })
-                              }}
-                              className="h-8"
-                              placeholder="字段名"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={field.type}
-                              onChange={(e) => {
-                                const newFields = [...editingTable.fields]
-                                newFields[index] = { ...newFields[index], type: e.target.value }
-                                setEditingTable({ ...editingTable, fields: newFields })
-                              }}
-                              className="h-8"
-                              placeholder="类型"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={field.length}
-                              onChange={(e) => {
-                                const newFields = [...editingTable.fields]
-                                newFields[index] = { ...newFields[index], length: e.target.value }
-                                setEditingTable({ ...editingTable, fields: newFields })
-                              }}
-                              className="h-8 w-20"
-                              placeholder="长度"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={field.precision}
-                              onChange={(e) => {
-                                const newFields = [...editingTable.fields]
-                                newFields[index] = { ...newFields[index], precision: e.target.value }
-                                setEditingTable({ ...editingTable, fields: newFields })
-                              }}
-                              className="h-8 w-20"
-                              placeholder="精度"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={field.comment}
-                              onChange={(e) => {
-                                const newFields = [...editingTable.fields]
-                                newFields[index] = { ...newFields[index], comment: e.target.value }
-                                setEditingTable({ ...editingTable, fields: newFields })
-                              }}
-                              className="h-8"
-                              placeholder="字段中文名"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={field.fieldType || '普通'}
-                              onValueChange={(value) => updateDetailFieldType(index, value)}
-                              disabled={!field.selected}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="度量">度量</SelectItem>
-                                <SelectItem value="维度">维度</SelectItem>
-                                <SelectItem value="普通">普通</SelectItem>
-                                 <SelectItem value="指标编号">指标编号</SelectItem>
-                                  <SelectItem value="指标名称">指标名称</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                const newFields = editingTable.fields.filter((_, i) => i !== index)
-                                setEditingTable({ ...editingTable, fields: newFields })
-                              }}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
+                          <TableHead>字段名</TableHead>
+                          <TableHead>类型</TableHead>
+                          <TableHead>长度</TableHead>
+                          <TableHead>精度</TableHead>
+                          <TableHead>字段中文名</TableHead>
+                          <TableHead className="w-[120px]">字段分类</TableHead>
+                          <TableHead className="w-[80px]">操作</TableHead>
                         </TableRow>
-                      )) || []}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {editingTable?.fields?.map((field, index) => (
+                          <TableRow key={`${editingTable.tableName}-${field.name}-${index}`}>
+                            <TableCell>
+                              <Checkbox
+                                checked={field.selected || false}
+                                onCheckedChange={() => updateDetailFieldSelection(index)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-mono">
+                              <Input
+                                value={field.name}
+                                onChange={(e) => {
+                                  const newFields = [...editingTable.fields]
+                                  newFields[index] = { ...newFields[index], name: e.target.value }
+                                  setEditingTable({ ...editingTable, fields: newFields })
+                                }}
+                                className="h-8"
+                                placeholder="字段名"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={field.type}
+                                onChange={(e) => {
+                                  const newFields = [...editingTable.fields]
+                                  newFields[index] = { ...newFields[index], type: e.target.value }
+                                  setEditingTable({ ...editingTable, fields: newFields })
+                                }}
+                                className="h-8"
+                                placeholder="类型"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={field.length}
+                                onChange={(e) => {
+                                  const newFields = [...editingTable.fields]
+                                  newFields[index] = { ...newFields[index], length: e.target.value }
+                                  setEditingTable({ ...editingTable, fields: newFields })
+                                }}
+                                className="h-8 w-20"
+                                placeholder="长度"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={field.precision}
+                                onChange={(e) => {
+                                  const newFields = [...editingTable.fields]
+                                  newFields[index] = { ...newFields[index], precision: e.target.value }
+                                  setEditingTable({ ...editingTable, fields: newFields })
+                                }}
+                                className="h-8 w-20"
+                                placeholder="精度"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={field.comment}
+                                onChange={(e) => {
+                                  const newFields = [...editingTable.fields]
+                                  newFields[index] = { ...newFields[index], comment: e.target.value }
+                                  setEditingTable({ ...editingTable, fields: newFields })
+                                }}
+                                className="h-8"
+                                placeholder="字段中文名"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={field.fieldType || '普通'}
+                                onValueChange={(value) => updateDetailFieldType(index, value)}
+                                disabled={!field.selected}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="度量">度量</SelectItem>
+                                  <SelectItem value="维度">维度</SelectItem>
+                                  <SelectItem value="普通">普通</SelectItem>
+                                  {/* <SelectItem value="指标编号">指标编号</SelectItem>
+                                  <SelectItem value="指标名称">指标名称</SelectItem> */}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  const newFields = editingTable.fields.filter((_, i) => i !== index)
+                                  setEditingTable({ ...editingTable, fields: newFields })
+                                }}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )) || []}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               </div>
-            </div>
             )}
           </div>
 
