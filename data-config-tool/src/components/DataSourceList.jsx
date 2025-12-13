@@ -74,7 +74,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
     } finally {
       setLoading(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setDataSources, waitForSdk])
 
   // 用 useRef 防止重复加载
@@ -164,14 +164,14 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
       } else {
         // SDK 不可用时使用本地状态
         if (editingSource) {
-          setDataSources(dataSources.map(ds => 
+          setDataSources(dataSources.map(ds =>
             ds.id === editingSource.id ? { ...dataToSave, id: editingSource.id } : ds
           ))
         } else {
           setDataSources([...dataSources, { ...dataToSave, id: Date.now() }])
         }
       }
-      
+
       // 关闭对话框
       setTimeout(() => {
         setIsDialogOpen(false)
@@ -213,7 +213,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
           </Button>
         </div>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto p-2">
         {loading && dataSources.length === 0 && (
           <div className="text-center text-muted-foreground py-8">
@@ -223,9 +223,8 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
         {dataSources.map((source) => (
           <div
             key={source.id}
-            className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors hover:bg-accent group ${
-              selectedSource?.id === source.id ? 'bg-accent border-l-2 border-primary' : ''
-            }`}
+            className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors hover:bg-accent group ${selectedSource?.id === source.id ? 'bg-accent border-l-2 border-primary' : ''
+              }`}
             onClick={() => onSelectSource(source)}
           >
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -260,7 +259,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
             </div>
           </div>
         ))}
-        
+
         {dataSources.length === 0 && (
           <div className="text-center text-muted-foreground py-8">
             暂无数据源，点击上方添加按钮创建
@@ -276,7 +275,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
               配置 JDBC 连接信息
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">数据源名称</Label>
@@ -287,7 +286,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
                 placeholder="例如: 生产环境数据库"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="type">数据库类型</Label>
               <Select
@@ -306,7 +305,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="driver">数据库驱动</Label>
               <Input
@@ -316,7 +315,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
                 placeholder="例如: com.mysql.cj.jdbc.Driver"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="url">数据源url</Label>
               <Input
@@ -326,7 +325,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
                 placeholder="例如: jdbc:mysql://localhost:3306/mydb"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="username">用户名</Label>
               <Input
@@ -336,7 +335,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
                 placeholder="root"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">密码</Label>
               <Input
@@ -348,7 +347,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
               />
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={saving}>
               取消

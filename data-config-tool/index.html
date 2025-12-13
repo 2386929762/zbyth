@@ -22,14 +22,42 @@
       // 表管理 panelCode
       tablePanelCode: 'OctoCM_BDYTH_IML_00003'
     };
-    window.panelxSdk = new PanelXSdk({
-      devDefaultBaseUrl: window.SDK_CONFIG.devDefaultBaseUrl,
-      busDomainCode: window.SDK_CONFIG.busDomainCode
-    });
-    console.log('[SDK] PanelX SDK 初始化成功');
 
-    // 触发自定义事件通知 React 应用
-    window.dispatchEvent(new CustomEvent('sdkReady'));
+    // 等待 PanelXSdk 类加载完成后再初始化
+    (function initSDK() {
+      // 检查 PanelXSdk 是否已加载
+      if (typeof PanelXSdk !== 'undefined') {
+        // 初始化 SDK
+        window.panelxSdk = new PanelXSdk({
+          devDefaultBaseUrl: window.SDK_CONFIG.devDefaultBaseUrl,
+          busDomainCode: window.SDK_CONFIG.busDomainCode
+        });
+        console.log('[SDK] PanelX SDK 初始化成功');
+
+        // 触发自定义事件通知 React 应用 SDK 已就绪
+        window.dispatchEvent(new CustomEvent('sdkReady'));
+
+        // 立即执行登录
+        window.panelxSdk.user.login({
+          userName: 'admin',
+          password: '123456'
+        }).then(function (res) {
+          console.log('[SDK] 登录成功', res);
+          // 保存用户信息
+          window.panelxUser = res;
+          // 设置登录标志
+          window.sdkLoggedIn = true;
+          // 触发登录成功事件，通知组件可以加载数据
+          window.dispatchEvent(new Event('sdkLoggedIn'));
+        }).catch(function (error) {
+          console.error('[SDK] 登录失败', error);
+          alert('登录失败: ' + error.message);
+        });
+      } else {
+        // 如果还未加载，100ms 后重试
+        setTimeout(initSDK, 100);
+      }
+    })();
   </script>
 
   <script type="module" src="/src/main.jsx"></script>
