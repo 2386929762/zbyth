@@ -37,22 +37,26 @@
         // 触发自定义事件通知 React 应用 SDK 已就绪
         window.dispatchEvent(new CustomEvent('sdkReady'));
 
-        // 立即执行登录
-        window.panelxSdk.user.login({
-          userName: 'admin',
-          password: '123456'
-        }).then(function (res) {
-          console.log('[SDK] 登录成功', res);
-          // 保存用户信息
-          window.panelxUser = res;
-          // 设置登录标志
+        // 检查是否已经登录
+        if (window.panelxSdk.user.isAuthenticated()) {
+          console.log('[SDK] 用户已登录，跳过登录流程');
           window.sdkLoggedIn = true;
-          // 触发登录成功事件，通知组件可以加载数据
           window.dispatchEvent(new Event('sdkLoggedIn'));
-        }).catch(function (error) {
-          console.error('[SDK] 登录失败', error);
-          alert('登录失败: ' + error.message);
-        });
+        } else {
+          // 未登录，执行登录
+          console.log('[SDK] 用户未登录，开始登录流程');
+          window.panelxSdk.user.login({
+            userName: 'admin',
+            password: '123456'
+          }).then(function (res) {
+            console.log('[SDK] 登录成功', res);
+            window.sdkLoggedIn = true;
+            window.dispatchEvent(new Event('sdkLoggedIn'));
+          }).catch(function (error) {
+            console.error('[SDK] 登录失败', error);
+            alert('登录失败: ' + error.message);
+          });
+        }
       } else {
         // 如果还未加载，100ms 后重试
         setTimeout(initSDK, 100);

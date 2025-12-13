@@ -387,29 +387,3 @@ export default {
   saveTable,
   deleteTable
 };
-
-/**
- * 执行登录（便捷方法）
- * @param {{userName: string, password: string}} creds
- */
-export const performLogin = async (creds = { userName: 'admin', password: '123456' }) => {
-  const sdk = getSdk();
-  if (!sdk) {
-    console.warn('[SDK] SDK 不可用，无法登录');
-    throw new Error('SDK 不可用');
-  }
-
-  try {
-    const res = await sdk.user.login({
-      userName: creds.userName,
-      password: creds.password
-    });
-    console.log('[SDK] 登录成功', res);
-    // 保存用户信息在全局，供页面使用
-    window.panelxUser = res;
-    return res;
-  } catch (error) {
-    console.error('[SDK] 登录失败', error);
-    throw error;
-  }
-};
