@@ -1,53 +1,38 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>数据表管理工具</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    
-    <!-- 加载 PanelX SDK -->
-    <script>
-      // SDK 配置
-      window.SDK_CONFIG = {
-        devDefaultBaseUrl: 'http://10.238.171.159:8090',
-        busDomainCode: 'OctoCM_BDYTH',
-        // 数据源管理 panelCode
-        dataSourcePanelCode: 'OctoCM_BDYTH_IML_00005',
-        // 表管理 panelCode
-        tablePanelCode: 'OctoCM_BDYTH_IML_00003'
-      };
-      
-      // 使用固定的 SDK 地址（写死为 demo 环境）
-      // const sdkUrl = 'https://demo.kwaidoo.com/zbyth/process/wp-core/api/getPanelXSdk';
-      //生产url
-      const sdkUrl = 'http://10.238.171.159:8090/wp-core/api/getPanelXSdk';
-      const script = document.createElement('script');
-      script.src = sdkUrl;
-      script.onload = function() {
-        // SDK 加载完成后初始化
-        if (typeof PanelXSdk !== 'undefined') {
-          window.panelxSdk = new PanelXSdk({
-            devDefaultBaseUrl: window.SDK_CONFIG.devDefaultBaseUrl,
-            busDomainCode: window.SDK_CONFIG.busDomainCode
-          });
-          console.log('[SDK] PanelX SDK 初始化成功');
-          
-          // 触发自定义事件通知 React 应用
-          window.dispatchEvent(new CustomEvent('sdkReady'));
-        }
-      };
-      script.onerror = function() {
-        console.warn('[SDK] PanelX SDK 加载失败，将使用模拟数据');
-        window.sdkLoadFailed = true;
-        window.dispatchEvent(new CustomEvent('sdkReady'));
-      };
-      document.head.appendChild(script);
-    </script>
-    
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>数据表管理工具</title>
+  <!-- 加载 PanelX SDK (preload.js 会自动加载 SDK) -->
+  <script src="/preload.js" devSdkUrl="http://183.6.70.7:24689/wp-core/api/getPanelXSdk"></script>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <script>
+    // SDK 配置
+    window.SDK_CONFIG = {
+      devDefaultBaseUrl: 'https://demo.kwaidoo.com/zbyth/process/',
+      busDomainCode: 'OctoCM_BDYTH',
+      // 数据源管理 panelCode
+      dataSourcePanelCode: 'OctoCM_BDYTH_IML_00005',
+      // 表管理 panelCode
+      tablePanelCode: 'OctoCM_BDYTH_IML_00003'
+    };
+    window.panelxSdk = new PanelXSdk({
+      devDefaultBaseUrl: window.SDK_CONFIG.devDefaultBaseUrl,
+      busDomainCode: window.SDK_CONFIG.busDomainCode
+    });
+    console.log('[SDK] PanelX SDK 初始化成功');
+
+    // 触发自定义事件通知 React 应用
+    window.dispatchEvent(new CustomEvent('sdkReady'));
+  </script>
+
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>
