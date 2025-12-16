@@ -11,12 +11,39 @@ const getSdk = () => {
   return null;
 };
 
+// 类型标准化映射
+const TYPE_MAP = {
+  文本: ['CHAR', 'NCHAR', 'VARCHAR', 'VARCHAR2', 'NVARCHAR', 'NVARCHAR2', 'TEXT', 'CLOB', 'STRING', 'LONGTEXT', 'MEDIUMTEXT'],
+  日期: ['DATE', 'DATETIME', 'TIMESTAMP', 'TIME', 'YEAR'],
+  数值: ['NUMBER', 'NUMERIC', 'DECIMAL', 'BIGINT', 'INT', 'INTEGER', 'SMALLINT', 'TINYINT', 'DOUBLE', 'FLOAT', 'REAL', 'MONEY']
+};
+
+const defaultConfig = {
+  dataSourcePanelCode: 'OctoCM_BDYTH_IML_00005',
+  tablePanelCode: 'OctoCM_BDYTH_IML_00003',
+  dictionaryCategoryPanelCode: null
+};
+
 // 获取配置
 const getConfig = () => {
-  return window.SDK_CONFIG || {
-    dataSourcePanelCode: 'OctoCM_BDYTH_IML_00005',
-    tablePanelCode: 'OctoCM_BDYTH_IML_00003'
-  };
+  const globalConfig = window.SDK_CONFIG || {};
+  return { ...defaultConfig, ...globalConfig };
+};
+
+const normalizeFieldCategory = (fieldType) => {
+  if (fieldType === '维度' || fieldType === '度量' || fieldType === '属性') {
+    return fieldType;
+  }
+  return '属性';
+};
+
+const normalizeDbType = (dbType) => {
+  const raw = String(dbType || '').toUpperCase();
+  const base = raw.replace(/\(.*/, '');
+
+  if (TYPE_MAP.日期.some(t => base.includes(t))) return '日期';
+  if (TYPE_MAP.数值.some(t => base.includes(t))) return '数值';
+  return '文本';
 };
 
 // 检查 SDK 是否可用
@@ -222,15 +249,22 @@ export const queryTableList = async (dataSourceId = null, dataSourceName = null,
 const parseTableStructure = (tableStructure) => {
   if (!tableStructure) return [];
   if (Array.isArray(tableStructure)) {
-    return tableStructure.map(field => ({
-      name: field['字段名'] || '',
-      type: field['类型'] || '',
-      length: field['长度'] || '',
-      precision: field['精度'] || '',
-      comment: field['字段中文名'] || '',
-      fieldType: field['字段分类'] || '普通',
-      selected: true
-    }));
+    return tableStructure.map(field => {
+      // 后端返回的类型已经是标准化的（文本/日期/数值），直接使用
+      const type = field['类型'] || '文本';
+      const fieldType = normalizeFieldCategory(field['字段分类']);
+      return {
+        name: field['字段名'] || '',
+        type,
+        length: field['长度'] || '',
+        precision: field['精度'] || '',
+        comment: field['字段中文名'] || '',
+        fieldType,
+        category: fieldType === '维度' ? (field['类别'] || '') : '',
+        dateFormat: field['日期格式'] || '',
+        selected: true
+      };
+    });
   }
   return [];
 };
@@ -281,6 +315,49 @@ export const queryTableDetail = async (id) => {
 };
 
 /**
+ * 查询数据字典类别
+ */
+export const queryDictionaryCategories = async (pageNo = 1, pageSize = 200) => {
+  const sdk = getSdk();
+  if (!sdk) {
+    console.warn('[SDK] SDK 不可用，无法查询数据字典类别');
+    return [];
+  }
+
+  const config = getConfig();
+  if (!config.dictionaryCategoryPanelCode) {
+    console.warn('[SDK] 未配置 dictionaryCategoryPanelCode，无法查询数据字典类别');
+    return [];
+  }
+
+  try {
+    const params = {
+      panelCode: config.dictionaryCategoryPanelCode,
+      condition: {},
+      pageNo,
+      pageSize
+    };
+
+    const result = await sdk.api.queryFormDataList(params);
+    console.log('[SDK] 查询数据字典类别结果:', result);
+
+    const list = (result?.data?.list || []).map(item => {
+      const value = item['类别编码'] || item['编码'] || item.code || item.id || item['编号'] || '';
+      const label = item['类别名称'] || item['名称'] || item.name || item.label || value;
+      return {
+        value: value ? String(value) : '',
+        label: label ? String(label) : ''
+      };
+    }).filter(item => item.value);
+
+    return list;
+  } catch (error) {
+    console.error('[SDK] 查询数据字典类别失败:', error);
+    throw error;
+  }
+};
+
+/**
  * 构建表结构数据
  */
 const buildTableStructure = (fields) => {
@@ -289,11 +366,13 @@ const buildTableStructure = (fields) => {
     .filter(f => f.selected !== false)
     .map(field => ({
       '字段名': field.name || '',
-      '类型': field.type || '',
+      '类型': field.type || '文本',
       '长度': String(field.length || ''),
       '精度': String(field.precision || ''),
       '字段中文名': field.comment || '',
-      '字段分类': field.fieldType || '普通'
+      '字段分类': normalizeFieldCategory(field.fieldType),
+      '日期格式': field.type === '日期' ? (field.dateFormat || 'yyyyMMdd') : '',
+      '类别': field.fieldType === '维度' ? (field.category || '') : ''
     }));
 };
 
@@ -336,10 +415,11 @@ export const saveTable = async (table) => {
       formData
     };
 
-    // console.log('[SDK] 保存表参数:', params);
-    // console.log('[SDK] 表结构json:', formData['表结构json']);
+    console.log('[SDK] 保存表参数:', params);
+    console.log('[SDK] 表结构数组:', tableStructureArray);
+    console.log('[SDK] 表结构json:', formData['表结构json']);
     const result = await sdk.api.callButton(params);
-    // console.log('[SDK] 保存表结果:', result);
+    console.log('[SDK] 保存表结果:', result);
     return result;
   } catch (error) {
     console.error('[SDK] 保存表失败:', error);
@@ -385,5 +465,6 @@ export default {
   deleteDataSource,
   queryTableList,
   saveTable,
-  deleteTable
+  deleteTable,
+  queryDictionaryCategories
 };

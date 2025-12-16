@@ -31,8 +31,6 @@ const DATABASE_TYPES = [
   { value: 'postgresql', label: 'PostgreSQL' },
   { value: 'oracle', label: 'Oracle' },
   { value: 'sqlserver', label: 'SQL Server' },
-  { value: 'mongodb', label: 'MongoDB' },
-  { value: 'redis', label: 'Redis' },
   { value: 'other', label: 'Other' },
 ]
 

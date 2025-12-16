@@ -91,6 +91,48 @@ const mockTableFields = {
   ],
 }
 
+const TYPE_OPTIONS = [
+  { value: '文本', label: '文本' },
+  { value: '日期', label: '日期' },
+  { value: '数值', label: '数值' }
+]
+
+const TYPE_MAP = {
+  文本: ['CHAR', 'NCHAR', 'VARCHAR', 'VARCHAR2', 'NVARCHAR', 'NVARCHAR2', 'TEXT', 'CLOB', 'STRING', 'LONGTEXT', 'MEDIUMTEXT'],
+  日期: ['DATE', 'DATETIME', 'TIMESTAMP', 'TIME', 'YEAR'],
+  数值: ['NUMBER', 'NUMERIC', 'DECIMAL', 'BIGINT', 'INT', 'INTEGER', 'SMALLINT', 'TINYINT', 'DOUBLE', 'FLOAT', 'REAL', 'MONEY']
+}
+
+const normalizeDbType = (dbType) => {
+  const raw = String(dbType || '').toUpperCase()
+  const base = raw.replace(/\(.*/, '')
+
+  if (TYPE_MAP.日期.some(t => base.includes(t))) return '日期'
+  if (TYPE_MAP.数值.some(t => base.includes(t))) return '数值'
+  return '文本'
+}
+
+const normalizeFieldCategory = (fieldType) => {
+  if (fieldType === '维度' || fieldType === '度量' || fieldType === '属性') {
+    return fieldType
+  }
+  return '属性'
+}
+
+const withFieldDefaults = (field = {}) => {
+  const normalizedType = TYPE_OPTIONS.some(opt => opt.value === field.type) ? field.type : normalizeDbType(field.type)
+  const normalizedCategory = normalizeFieldCategory(field.fieldType)
+
+  return {
+    ...field,
+    type: normalizedType,
+    fieldType: normalizedCategory,
+    category: normalizedCategory === '维度' ? (field.category || '') : '',
+    dateFormat: normalizedType === '日期' ? (field.dateFormat || 'yyyyMMdd') : '',
+    selected: field.selected !== false
+  }
+}
+
 export function TableManagement({ selectedSource, tables, setTables }) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
@@ -114,6 +156,8 @@ export function TableManagement({ selectedSource, tables, setTables }) {
   const [tableFields, setTableFields] = useState([])
   const [formData, setFormData] = useState({ chineseName: '', description: '' })
   const [editingTable, setEditingTable] = useState(null)
+  const [categoryOptions, setCategoryOptions] = useState([])
+  const [loadingCategories, setLoadingCategories] = useState(false)
 
   // 用 useRef 记录当前数据源ID，防止重复加载
   const lastLoadedSourceIdRef = React.useRef(null)
@@ -138,6 +182,46 @@ export function TableManagement({ selectedSource, tables, setTables }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSource?.id]) // 只依赖 selectedSource.id
+
+  const loadDictionaryCategories = useCallback(async () => {
+    if (!isSdkAvailable()) {
+      setCategoryOptions([])
+      return
+    }
+
+    setLoadingCategories(true)
+    try {
+      const sdk = window.panelxSdk
+      const params = {
+        panelCode: 'IML_00011',
+        buttonName: '查询码值类型',
+        buttonParam: {
+          configName: '数据字典类别表'
+        }
+      }
+
+      const result = await sdk.api.callButton(params)
+      console.log('[TableManagement] 查询数据字典类别结果:', result)
+
+      if (result && result.data && result.data.right) {
+        // right 是二维数组，每个元素是 [type_id, type_name]
+        // 第一个字段作为 value，第二个字段作为 label
+        const list = result.data.right.map(row => ({
+          value: row[0] ? String(row[0]) : '',
+          label: row[1] ? String(row[1]) : row[0]
+        })).filter(item => item.value)
+        
+        setCategoryOptions(list)
+      } else {
+        setCategoryOptions([])
+      }
+    } catch (error) {
+      console.error('[TableManagement] 加载数据字典类别失败:', error)
+      setCategoryOptions([])
+    } finally {
+      setLoadingCategories(false)
+    }
+  }, [])
 
   // 选择数据源变化或 SDK 登录成功后加载数据
   useEffect(() => {
@@ -265,6 +349,12 @@ export function TableManagement({ selectedSource, tables, setTables }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSchema, isAddDialogOpen])
 
+  useEffect(() => {
+    if (isDetailDialogOpen) {
+      loadDictionaryCategories()
+    }
+  }, [isDetailDialogOpen, loadDictionaryCategories])
+
   // 过滤和分页表列表
   const filteredTables = tablesFromDb.filter(table =>
     table.name.toLowerCase().includes(tableSearchText.toLowerCase()) ||
@@ -331,21 +421,25 @@ export function TableManagement({ selectedSource, tables, setTables }) {
             const precision = fieldIndexMap['精度'] !== undefined ? row[fieldIndexMap['精度']] : ''
             const comment = fieldIndexMap['字段中文名'] !== undefined ? row[fieldIndexMap['字段中文名']] : ''
 
+            const normalizedType = normalizeDbType(type)
+
             return {
               name: fieldName || '',
-              type: type || '',
+              type: normalizedType,
               // 如果值为 -1 或 '-1'，则设为空字符串
               length: (length === -1 || length === '-1') ? '' : (length || ''),
               precision: (precision === -1 || precision === '-1') ? '' : (precision || ''),
               comment: comment || '',
-              fieldType: '普通',
+              fieldType: '属性',
+              category: '',
+              dateFormat: normalizedType === '日期' ? 'yyyyMMdd' : '',
               selected: true
             }
           })
 
           setEditingTable(prev => ({
             ...prev,
-            fields: fields
+            fields: fields.map(withFieldDefaults)
           }))
         }
       } catch (error) {
@@ -361,7 +455,10 @@ export function TableManagement({ selectedSource, tables, setTables }) {
         ...prev,
         fields: fields.map(f => ({
           ...f,
-          fieldType: '普通',
+          type: normalizeDbType(f.type),
+          fieldType: '属性',
+          category: '',
+          dateFormat: normalizeDbType(f.type) === '日期' ? 'yyyyMMdd' : '',
           selected: true
         }))
       }))
@@ -397,8 +494,38 @@ export function TableManagement({ selectedSource, tables, setTables }) {
   const updateDetailFieldType = (fieldIndex, fieldType) => {
     setEditingTable(prev => ({
       ...prev,
+      fields: prev.fields.map((f, index) => {
+        if (index !== fieldIndex) return f
+        const normalized = normalizeFieldCategory(fieldType)
+        return {
+          ...f,
+          fieldType: normalized,
+          category: normalized === '维度' ? f.category : ''
+        }
+      })
+    }))
+  }
+
+  const updateDetailFieldDataType = (fieldIndex, type) => {
+    setEditingTable(prev => ({
+      ...prev,
+      fields: prev.fields.map((f, index) => {
+        if (index !== fieldIndex) return f
+        const isDate = type === '日期'
+        return {
+          ...f,
+          type,
+          dateFormat: isDate ? (f.dateFormat || 'yyyyMMdd') : ''
+        }
+      })
+    }))
+  }
+
+  const updateDetailFieldCategory = (fieldIndex, category) => {
+    setEditingTable(prev => ({
+      ...prev,
       fields: prev.fields.map((f, index) =>
-        index === fieldIndex ? { ...f, fieldType } : f
+        index === fieldIndex ? { ...f, category } : f
       )
     }))
   }
@@ -406,8 +533,8 @@ export function TableManagement({ selectedSource, tables, setTables }) {
   // 切换详情对话框中所有字段的全选/取消全选
   const toggleSelectAllFields = () => {
     setEditingTable(prev => {
-      if (!prev) return prev
-      const allSelected = prev.fields.every(f => f.selected)
+      if (!prev || !prev.fields) return prev
+      const allSelected = prev.fields.length > 0 && prev.fields.every(f => f.selected)
       return {
         ...prev,
         fields: prev.fields.map(f => ({ ...f, selected: !allSelected }))
@@ -448,7 +575,10 @@ export function TableManagement({ selectedSource, tables, setTables }) {
 
   const handleOpenDetailDialog = async (table) => {
     // 先设置基本信息并打开对话框
-    setEditingTable({ ...table, fields: table.fields || [] })
+    setEditingTable({
+      ...table,
+      fields: (table.fields || []).map(withFieldDefaults)
+    })
     setLoadingDetail(true)
     setTimeout(() => setIsDetailDialogOpen(true), 0)
 
@@ -457,7 +587,10 @@ export function TableManagement({ selectedSource, tables, setTables }) {
       try {
         const detail = await queryTableDetail(table.id)
         if (detail) {
-          setEditingTable(detail)
+          setEditingTable({
+            ...detail,
+            fields: (detail.fields || []).map(withFieldDefaults)
+          })
           console.log('[TableManagement] 从 SDK 加载表详情:', detail)
         }
       } catch (error) {
@@ -493,11 +626,15 @@ export function TableManagement({ selectedSource, tables, setTables }) {
   const handleSaveTableDetail = async () => {
     if (!editingTable) return
 
-    const selectedFields = editingTable.fields.filter(f => f.selected)
+    const selectedFields = editingTable.fields
+      .filter(f => f.selected)
+      .map(withFieldDefaults)
     if (selectedFields.length === 0) {
       alert('请至少选择一个字段')
       return
     }
+
+    console.log('[TableManagement] 保存前的字段数据:', selectedFields)
 
     setSaving(true)
     try {
@@ -511,6 +648,8 @@ export function TableManagement({ selectedSource, tables, setTables }) {
         fields: selectedFields,
         dataSourceId: selectedSource.id
       }
+
+      console.log('[TableManagement] 准备保存的表数据:', tableData)
 
       // 如果有 id，说明是更新操作
       if (editingTable.id) {
@@ -817,11 +956,13 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                       onClick={() => {
                         const newField = {
                           name: '',
-                          type: 'VARCHAR',
+                          type: '文本',
                           length: '',
                           precision: '',
                           comment: '',
-                          fieldType: '普通',
+                          fieldType: '属性',
+                          category: '',
+                          dateFormat: '',
                           selected: true,
                           isNew: true
                         }
@@ -847,10 +988,10 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                           </TableHead>
                           <TableHead>字段名</TableHead>
                           <TableHead>类型</TableHead>
-                          <TableHead>长度</TableHead>
-                          <TableHead>精度</TableHead>
+                          <TableHead className="w-[140px]">日期格式</TableHead>
                           <TableHead>字段中文名</TableHead>
                           <TableHead className="w-[120px]">字段分类</TableHead>
+                          <TableHead className="w-[140px]">类别</TableHead>
                           <TableHead className="w-[80px]">操作</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -876,39 +1017,35 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                               />
                             </TableCell>
                             <TableCell>
-                              <Input
-                                value={field.type}
-                                onChange={(e) => {
-                                  const newFields = [...editingTable.fields]
-                                  newFields[index] = { ...newFields[index], type: e.target.value }
-                                  setEditingTable({ ...editingTable, fields: newFields })
-                                }}
-                                className="h-8"
-                                placeholder="类型"
-                              />
+                              <Select
+                                value={field.type || '文本'}
+                                onValueChange={(value) => updateDetailFieldDataType(index, value)}
+                                disabled={!field.selected}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {TYPE_OPTIONS.map(option => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </TableCell>
+                            
                             <TableCell>
                               <Input
-                                value={field.length}
+                                value={field.dateFormat || ''}
                                 onChange={(e) => {
                                   const newFields = [...editingTable.fields]
-                                  newFields[index] = { ...newFields[index], length: e.target.value }
+                                  newFields[index] = { ...newFields[index], dateFormat: e.target.value }
                                   setEditingTable({ ...editingTable, fields: newFields })
                                 }}
-                                className="h-8 w-20"
-                                placeholder="长度"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                value={field.precision}
-                                onChange={(e) => {
-                                  const newFields = [...editingTable.fields]
-                                  newFields[index] = { ...newFields[index], precision: e.target.value }
-                                  setEditingTable({ ...editingTable, fields: newFields })
-                                }}
-                                className="h-8 w-20"
-                                placeholder="精度"
+                                className="h-8 w-32"
+                                placeholder="yyyyMMdd"
+                                disabled={!field.selected || field.type !== '日期'}
                               />
                             </TableCell>
                             <TableCell>
@@ -925,7 +1062,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                             </TableCell>
                             <TableCell>
                               <Select
-                                value={field.fieldType || '普通'}
+                                value={field.fieldType || '属性'}
                                 onValueChange={(value) => updateDetailFieldType(index, value)}
                                 disabled={!field.selected}
                               >
@@ -935,9 +1072,37 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                                 <SelectContent>
                                   <SelectItem value="度量">度量</SelectItem>
                                   <SelectItem value="维度">维度</SelectItem>
-                                  <SelectItem value="普通">普通</SelectItem>
+                                  <SelectItem value="属性">属性</SelectItem>
                                   {/* <SelectItem value="指标编号">指标编号</SelectItem>
                                   <SelectItem value="指标名称">指标名称</SelectItem> */}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={field.category || ''}
+                                onValueChange={(value) => updateDetailFieldCategory(index, value)}
+                                disabled={!field.selected || field.fieldType !== '维度' || loadingCategories}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue placeholder={loadingCategories ? '加载中...' : '选择类别'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {loadingCategories && (
+                                    <SelectItem value="__loading" disabled>
+                                      加载中...
+                                    </SelectItem>
+                                  )}
+                                  {!loadingCategories && categoryOptions.length === 0 && (
+                                    <SelectItem value="__none" disabled>
+                                      暂无类别数据
+                                    </SelectItem>
+                                  )}
+                                  {!loadingCategories && categoryOptions.map(option => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             </TableCell>
