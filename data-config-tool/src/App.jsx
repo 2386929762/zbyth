@@ -13,6 +13,9 @@ function App() {
   const [openTabs, setOpenTabs] = useState([])
   const [activeTab, setActiveTab] = useState(null)
 
+  // 检查是否为 compact 模式
+  const isCompact = new URLSearchParams(window.location.search).get('compact') === '1'
+
   // 当数据源更新时,同步更新openTabs中的数据
   const handleSetDataSources = (newDataSources) => {
     setDataSources(newDataSources)
@@ -53,16 +56,18 @@ function App() {
 
   return (
     <div className="h-screen flex flex-col">
-      {/* 顶部导航栏 */}
-      <header className="border-b bg-card">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-2xl font-bold">数据表管理工具</h1>
-            <p className="text-sm text-muted-foreground">管理数据源和数据表配置</p>
+      {/* 顶部导航栏（支持 compact 模式隐藏）*/}
+      {!isCompact && (
+        <header className="border-b bg-card">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div>
+              <h1 className="text-2xl font-bold">数据表管理工具</h1>
+              <p className="text-sm text-muted-foreground">管理数据源和数据表配置</p>
+            </div>
+            <ThemeToggle />
           </div>
-          <ThemeToggle />
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* 主内容区 */}
       <main className="flex-1 flex overflow-hidden">

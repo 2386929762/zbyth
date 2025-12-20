@@ -210,7 +210,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
           value: row[0] ? String(row[0]) : '',
           label: row[1] ? String(row[1]) : row[0]
         })).filter(item => item.value)
-        
+
         setCategoryOptions(list)
       } else {
         setCategoryOptions([])
@@ -710,7 +710,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
           </Button>
           <Button onClick={handleOpenAddDialog}>
             <Plus className="h-4 w-4 mr-1" />
-            添加表
+            添加
           </Button>
         </div>
       </div>
@@ -1034,7 +1034,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            
+
                             <TableCell>
                               <Input
                                 value={field.dateFormat || ''}
