@@ -2,12 +2,15 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { ThemeProvider } from './contexts/ThemeContext'
 
 // 注意：SDK 初始化和登录已在 index.html 中完成
 // 组件会监听 sdkLoggedIn 事件来加载数据
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <ThemeProvider defaultMode="light" defaultColor="green">
+      <App />
+    </ThemeProvider>
   </StrictMode>,
 )
