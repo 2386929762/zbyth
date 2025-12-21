@@ -63,6 +63,21 @@ export function ThemeProvider({
         return () => window.removeEventListener('message', handleMessage)
     }, [])
 
+    // 监听同域下其他标签页/窗口对 localStorage 的修改
+    useEffect(() => {
+        const handleStorageChange = (e) => {
+            // 只处理主题相关的 storage 变化
+            if (e.key === `${STORAGE_KEY}-mode` && e.newValue) {
+                setMode(e.newValue)
+            } else if (e.key === `${STORAGE_KEY}-color` && e.newValue) {
+                setColorTheme(e.newValue)
+            }
+        }
+
+        window.addEventListener('storage', handleStorageChange)
+        return () => window.removeEventListener('storage', handleStorageChange)
+    }, [])
+
     const value = {
         mode,
         colorTheme,
