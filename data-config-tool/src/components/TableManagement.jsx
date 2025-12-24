@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Plus, Settings, Search, ChevronRight, Trash2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PaginationBar } from '@/components/PaginationBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
@@ -129,22 +130,29 @@ const withFieldDefaults = (field = {}) => {
     fieldType: normalizedCategory,
     category: normalizedCategory === '维度' ? (field.category || '') : '',
     dateFormat: normalizedType === '日期' ? (field.dateFormat || 'yyyyMMdd') : '',
-    selected: field.selected !== false
+    dateFormat: normalizedType === '日期' ? (field.dateFormat || 'yyyyMMdd') : '',
+    selected: false // 默认为 false，用作 UI 交互选择（批量删除等）
   }
 }
 
-export function TableManagement({ selectedSource, tables, setTables }) {
+export function TableManagement({ selectedSource, tables, setTables, dataSources }) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  // 表管理页面的筛选条件
+  const [searchInput, setSearchInput] = useState('') // 搜索框输入值
+
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
+  const [totalItems, setTotalItems] = useState(0)
+
   // 左侧表列表状态
   const [selectedSchema, setSelectedSchema] = useState('public')
   const [tableSearchText, setTableSearchText] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
   const [selectedTableName, setSelectedTableName] = useState(null)
-  const [pageSize, setPageSize] = useState(50)
 
   // 从 SDK 获取的数据
   const [schemas, setSchemas] = useState([])
@@ -163,15 +171,24 @@ export function TableManagement({ selectedSource, tables, setTables }) {
   const lastLoadedSourceIdRef = React.useRef(null)
 
   // 加载表列表
-  const loadTables = useCallback(async () => {
+  // 加载表列表
+  const loadTables = async () => {
     if (!selectedSource) return
 
     setLoading(true)
     try {
       if (isSdkAvailable()) {
-        // 使用数据源名称进行过滤查询
-        const result = await queryTableList(selectedSource.id, selectedSource.name)
+        // 使用 dsCode 和 keyword 进行过滤查询
+        const keyword = searchInput.trim()
+        console.log('[TableManagement] 搜索关键词:', keyword, '是否为空:', !keyword)
+        const result = await queryTableList(
+          selectedSource.id,
+          keyword || null,
+          currentPage,
+          pageSize
+        )
         setTables(result.list || [])
+        setTotalItems(result.totalSize || 0)
         console.log('[TableManagement] 从 SDK 加载表列表:', result.list)
       }
     } catch (error) {
@@ -180,8 +197,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
     } finally {
       setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSource?.id]) // 只依赖 selectedSource.id
+  }
 
   const loadDictionaryCategories = useCallback(async () => {
     if (!isSdkAvailable()) {
@@ -561,7 +577,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
       tableName: selectedTableName,
       chineseName: formData.chineseName || tableInfo?.comment || '',
       description: formData.description || '',
-      dataSourceId: selectedSource.id,
+      dsCode: selectedSource.id,
       schema: selectedSchema,
       fields: selectedFields
     }
@@ -627,7 +643,6 @@ export function TableManagement({ selectedSource, tables, setTables }) {
     if (!editingTable) return
 
     const selectedFields = editingTable.fields
-      .filter(f => f.selected)
       .map(withFieldDefaults)
     if (selectedFields.length === 0) {
       alert('请至少选择一个字段')
@@ -644,9 +659,8 @@ export function TableManagement({ selectedSource, tables, setTables }) {
         tableName: editingTable.tableName,
         chineseName: editingTable.chineseName,
         description: editingTable.description,
-        dataSourceName: selectedSource.name,
-        fields: selectedFields,
-        dataSourceId: selectedSource.id
+        dsCode: selectedSource.id,
+        fields: selectedFields
       }
 
       console.log('[TableManagement] 准备保存的表数据:', tableData)
@@ -695,19 +709,36 @@ export function TableManagement({ selectedSource, tables, setTables }) {
     )
   }
 
-  const currentTables = tables.filter(t => t.dataSourceId === selectedSource.id)
+  // 处理搜索 - 只在按下 Enter 时触发
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      loadTables()
+    }
+  }
+
+  const currentTables = tables.filter(t => t.dsCode === selectedSource.id)
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">表管理</h2>
-          <p className="text-sm text-muted-foreground">数据源: {selectedSource.name}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={loadTables} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+      <div className="p-4 border-b">
+        <div className="flex items-center justify-end gap-2">
+          {/* 表名搜索框 */}
+          <div className="relative w-[300px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="搜索表名（按Enter搜索）"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              className="pl-9"
+            />
+          </div>
+          {/* 刷新按钮 */}
+          <Button variant="outline" size="sm" onClick={loadTables} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+            刷新
           </Button>
+          {/* 添加按钮 */}
           <Button onClick={handleOpenAddDialog}>
             <Plus className="h-4 w-4 mr-1" />
             添加
@@ -724,7 +755,6 @@ export function TableManagement({ selectedSource, tables, setTables }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>数据源名称</TableHead>
               <TableHead>模式名</TableHead>
               <TableHead>表名</TableHead>
               <TableHead>中文名</TableHead>
@@ -739,7 +769,6 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleOpenDetailDialog(table)}
               >
-                <TableCell className="text-sm text-muted-foreground">{table.dataSourceName}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{table.schema}</TableCell>
                 <TableCell className="font-mono">{table.tableName}</TableCell>
                 <TableCell>{table.chineseName}</TableCell>
@@ -758,7 +787,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
             ))}
             {currentTables.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                   暂无表数据,点击右上角添加表按钮
                 </TableCell>
               </TableRow>
@@ -766,6 +795,18 @@ export function TableManagement({ selectedSource, tables, setTables }) {
           </TableBody>
         </Table>
       </div>
+
+      {/* 分页栏 */}
+      <PaginationBar
+        totalSize={totalItems}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(parseInt(newSize))
+          setCurrentPage(1)
+        }}
+      />
 
       {/* 添加表对话框 - 单列表格布局 */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -912,14 +953,14 @@ export function TableManagement({ selectedSource, tables, setTables }) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6">
+          <div className="flex-1 flex flex-col min-h-0 px-4 overflow-hidden">
             {loadingDetail && (
               <div className="flex items-center justify-center py-8 text-muted-foreground">
                 加载中...
               </div>
             )}
             {editingTable && !loadingDetail && (
-              <div className="space-y-6">
+              <div className="flex-1 flex flex-col min-h-0 space-y-4">
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>模式名</Label>
@@ -948,63 +989,77 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="flex-1 flex flex-col min-h-0 space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>表结构</Label>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        const newField = {
-                          name: '',
-                          type: '文本',
-                          length: '',
-                          precision: '',
-                          comment: '',
-                          fieldType: '属性',
-                          category: '',
-                          dateFormat: '',
-                          selected: true,
-                          isNew: true
-                        }
-                        setEditingTable({
-                          ...editingTable,
-                          fields: [...(editingTable.fields || []), newField]
-                        })
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      添加字段
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          if (!editingTable || !editingTable.fields) return
+                          const newFields = editingTable.fields.filter(f => !f.selected)
+                          setEditingTable({ ...editingTable, fields: newFields })
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        删除选中
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const newField = {
+                            name: '',
+                            type: '文本',
+                            length: '',
+                            precision: '',
+                            comment: '',
+                            fieldType: '属性',
+                            category: '',
+                            dateFormat: '',
+                            selected: false,
+                            isNew: true
+                          }
+                          setEditingTable({
+                            ...editingTable,
+                            fields: [...(editingTable.fields || []), newField]
+                          })
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        添加字段
+                      </Button>
+                    </div>
                   </div>
-                  <div className="border rounded-md max-h-[300px] overflow-auto">
+                  <div className="flex-1 border rounded-md overflow-auto">
                     <Table>
                       <TableHeader className="sticky top-0 bg-background">
                         <TableRow>
-                          <TableHead className="w-[50px]">
+                          <TableHead className="w-[30px] p-2">
                             <Checkbox
                               checked={editingTable?.fields?.every(f => f.selected) || false}
                               onCheckedChange={toggleSelectAllFields}
                             />
                           </TableHead>
-                          <TableHead>字段名</TableHead>
-                          <TableHead>类型</TableHead>
-                          <TableHead className="w-[140px]">日期格式</TableHead>
-                          <TableHead>字段中文名</TableHead>
-                          <TableHead className="w-[120px]">字段分类</TableHead>
-                          <TableHead className="w-[140px]">类别</TableHead>
-                          <TableHead className="w-[80px]">操作</TableHead>
+                          <TableHead className="p-2">字段名</TableHead>
+                          <TableHead className="w-[110px] p-2">类型</TableHead>
+                          <TableHead className="w-[140px] p-2">日期格式</TableHead>
+                          <TableHead className="p-2">字段中文名</TableHead>
+                          <TableHead className="w-[110px] p-2">字段分类</TableHead>
+                          <TableHead className="w-[110px] p-2">类别</TableHead>
+
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {editingTable?.fields?.map((field, index) => (
                           <TableRow key={`${editingTable.tableName}-${field.name}-${index}`}>
-                            <TableCell>
+                            <TableCell className="p-2">
                               <Checkbox
                                 checked={field.selected || false}
                                 onCheckedChange={() => updateDetailFieldSelection(index)}
                               />
                             </TableCell>
-                            <TableCell className="font-mono">
+                            <TableCell className="font-mono p-2">
                               <Input
                                 value={field.name}
                                 onChange={(e) => {
@@ -1016,7 +1071,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                                 placeholder="字段名"
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="p-2">
                               <Select
                                 value={field.type || '文本'}
                                 onValueChange={(value) => updateDetailFieldDataType(index, value)}
@@ -1035,7 +1090,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                               </Select>
                             </TableCell>
 
-                            <TableCell>
+                            <TableCell className="p-2">
                               <Input
                                 value={field.dateFormat || ''}
                                 onChange={(e) => {
@@ -1048,7 +1103,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                                 disabled={!field.selected || field.type !== '日期'}
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="p-2">
                               <Input
                                 value={field.comment}
                                 onChange={(e) => {
@@ -1060,7 +1115,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                                 placeholder="字段中文名"
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="p-2">
                               <Select
                                 value={field.fieldType || '属性'}
                                 onValueChange={(value) => updateDetailFieldType(index, value)}
@@ -1078,7 +1133,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="p-2">
                               <Select
                                 value={field.category || ''}
                                 onValueChange={(value) => updateDetailFieldCategory(index, value)}
@@ -1106,19 +1161,7 @@ export function TableManagement({ selectedSource, tables, setTables }) {
                                 </SelectContent>
                               </Select>
                             </TableCell>
-                            <TableCell>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  const newFields = editingTable.fields.filter((_, i) => i !== index)
-                                  setEditingTable({ ...editingTable, fields: newFields })
-                                }}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
+
                           </TableRow>
                         )) || []}
                       </TableBody>

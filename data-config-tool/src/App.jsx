@@ -122,6 +122,7 @@ function App() {
                       selectedSource={tab}
                       tables={tables}
                       setTables={setTables}
+                      dataSources={dataSources}
                     />
                   </ErrorBoundary>
                 </TabsContent>

@@ -229,32 +229,17 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
               <Database className="h-4 w-4 flex-shrink-0" />
               <span className="text-sm font-medium truncate">{source.name}</span>
             </div>
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 w-7 p-0"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleOpenDialog(source)
-                }}
-              >
-                <Pencil className="h-3 w-3" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (confirm('确定要删除这个数据源吗？')) {
-                    handleDelete(source.id)
-                  }
-                }}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleOpenDialog(source)
+              }}
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
           </div>
         ))}
 

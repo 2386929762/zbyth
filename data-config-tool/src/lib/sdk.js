@@ -186,15 +186,15 @@ export const deleteDataSource = async (id) => {
 
 // ==================== 表管理 API ====================
 // panelCode: OctoCM_BDYTH_IML_00003
-// 属性：模式名, 表名, 中文名, 描述, 表结构
+// 属性：模式名, 表名, 中文名, 描述, 数据源编号(dsCode), 表结构
 // 表结构属性：字段名, 类型, 长度, 精度, 字段中文名, 字段分类
 
 /**
  * 查询表列表
- * @param {string} dataSourceId - 数据源ID（可选，用于筛选）
- * @param {string} dataSourceName - 数据源名称（可选，用于筛选）
+ * @param {string} dsCode - 数据源编号（可选，用于筛选）
+ * @param {string} keyword - 搜索关键词（可选，用于搜索）
  */
-export const queryTableList = async (dataSourceId = null, dataSourceName = null, pageNo = 1, pageSize = 100) => {
+export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, pageSize = 100) => {
   const sdk = getSdk();
   if (!sdk) {
     console.warn('[SDK] SDK 不可用，返回空列表');
@@ -204,9 +204,9 @@ export const queryTableList = async (dataSourceId = null, dataSourceName = null,
   try {
     const config = getConfig();
     const condition = {};
-    // 如果有数据源名称，加入筛选条件
-    if (dataSourceName) {
-      condition['数据源名称'] = dataSourceName;
+    // 如果有数据源编号，加入筛选条件
+    if (dsCode) {
+      condition['dsCode'] = dsCode;
     }
 
     const params = {
@@ -216,6 +216,14 @@ export const queryTableList = async (dataSourceId = null, dataSourceName = null,
       pageSize
     };
 
+    // 如果有搜索关键词，添加到 params
+    console.log('[SDK] keyword 参数:', keyword, '类型:', typeof keyword, '是否添加:', !!keyword)
+    if (keyword) {
+      params.keyword = keyword;
+      console.log('[SDK] 已添加 keyword 到 params')
+    }
+
+    console.log('[SDK] 最终请求参数:', params)
     const result = await sdk.api.queryFormDataList(params);
     console.log('[SDK] 查询表列表结果:', result);
 
@@ -227,8 +235,7 @@ export const queryTableList = async (dataSourceId = null, dataSourceName = null,
         tableName: item['表名'] || '',
         chineseName: item['中文名'] || '',
         description: item['描述'] || '',
-        dataSourceId: item['数据源编号'] || dataSourceId,
-        dataSourceName: item['数据源名称'] || '',
+        dsCode: item['dsCode'] || '',
         fields: parseTableStructure(item['表结构'])
       }));
       return {
@@ -302,8 +309,7 @@ export const queryTableDetail = async (id) => {
         tableName: item['表名'] || '',
         chineseName: item['中文名'] || '',
         description: item['描述'] || '',
-        dataSourceId: item['数据源编号'] || '',
-        dataSourceName: item['数据源名称'] || '',
+        dsCode: item['dsCode'] || '',
         fields: parseTableStructure(item['表结构'])
       };
     }
@@ -399,7 +405,7 @@ export const saveTable = async (table) => {
       '表名': table.tableName,
       '中文名': table.chineseName,
       '描述': table.description,
-      '数据源名称': table.dataSourceName || '',
+      'dsCode': table.dsCode || '',
       '表结构': tableStructureArray,
       '表结构json': JSON.stringify(tableStructureArray)
     };
