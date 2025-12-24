@@ -130,7 +130,6 @@ const withFieldDefaults = (field = {}) => {
     fieldType: normalizedCategory,
     category: normalizedCategory === '维度' ? (field.category || '') : '',
     dateFormat: normalizedType === '日期' ? (field.dateFormat || 'yyyyMMdd') : '',
-    dateFormat: normalizedType === '日期' ? (field.dateFormat || 'yyyyMMdd') : '',
     selected: false // 默认为 false，用作 UI 交互选择（批量删除等）
   }
 }
