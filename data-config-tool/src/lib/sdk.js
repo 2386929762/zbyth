@@ -58,24 +58,21 @@ export const isSdkAvailable = () => {
 /**
  * 查询数据源列表
  */
-export const queryDataSourceList = async (pageNo = 1, pageSize = 100) => {
+export const queryDataSourceList = async () => {
   const sdk = getSdk();
   if (!sdk) {
     console.warn('[SDK] SDK 不可用，返回空列表');
     return { list: [], totalSize: 0 };
   }
-  console.log("current user: ", sdk.user.getUserInfo());
 
   try {
     const config = getConfig();
     const params = {
       panelCode: config.dataSourcePanelCode,
-      condition: {},
-      pageNo,
-      pageSize
+      buttonName: 'queryDataSourceList'
     };
 
-    const result = await sdk.api.queryFormDataList(params);
+    const result = await sdk.api.callButton(params);
     console.log('[SDK] 查询数据源列表结果:', result);
 
     if (result && result.data) {
