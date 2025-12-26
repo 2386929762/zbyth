@@ -648,6 +648,13 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
       return
     }
 
+    // 校验字段名不能为空
+    const emptyFieldName = selectedFields.find(f => !f.name || !f.name.trim())
+    if (emptyFieldName) {
+      alert('存在字段名为空的字段，请填写完整后再保存')
+      return
+    }
+
     console.log('[TableManagement] 保存前的字段数据:', selectedFields)
 
     setSaving(true)
@@ -1051,7 +1058,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                       </TableHeader>
                       <TableBody>
                         {editingTable?.fields?.map((field, index) => (
-                          <TableRow key={`${editingTable.tableName}-${field.name}-${index}`}>
+                          <TableRow key={index}>
                             <TableCell className="p-2">
                               <Checkbox
                                 checked={field.selected || false}
@@ -1074,7 +1081,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                               <Select
                                 value={field.type || '文本'}
                                 onValueChange={(value) => updateDetailFieldDataType(index, value)}
-                                disabled={!field.selected}
                               >
                                 <SelectTrigger className="h-8">
                                   <SelectValue />
@@ -1099,7 +1105,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                                 }}
                                 className="h-8 w-32"
                                 placeholder="yyyyMMdd"
-                                disabled={!field.selected || field.type !== '日期'}
+                                disabled={field.type !== '日期'}
                               />
                             </TableCell>
                             <TableCell className="p-2">
@@ -1118,7 +1124,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                               <Select
                                 value={field.fieldType || '属性'}
                                 onValueChange={(value) => updateDetailFieldType(index, value)}
-                                disabled={!field.selected}
                               >
                                 <SelectTrigger className="h-8">
                                   <SelectValue />
@@ -1136,7 +1141,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                               <Select
                                 value={field.category || ''}
                                 onValueChange={(value) => updateDetailFieldCategory(index, value)}
-                                disabled={!field.selected || field.fieldType !== '维度' || loadingCategories}
+                                disabled={field.fieldType !== '维度' || loadingCategories}
                               >
                                 <SelectTrigger className="h-8">
                                   <SelectValue placeholder={loadingCategories ? '加载中...' : '选择类别'} />

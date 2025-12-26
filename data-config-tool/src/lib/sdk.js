@@ -234,7 +234,7 @@ export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, 
         chineseName: item['中文名'] || '',
         description: item['描述'] || '',
         dsCode: item['dsCode'] || '',
-        fields: parseTableStructure(item['表结构'])
+        fields: parseTableStructure(item['表结构json'] || item['表结构'])
       }));
       return {
         list,
@@ -253,8 +253,20 @@ export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, 
  */
 const parseTableStructure = (tableStructure) => {
   if (!tableStructure) return [];
-  if (Array.isArray(tableStructure)) {
-    return tableStructure.map(field => {
+
+  let fields = tableStructure;
+  // 如果是字符串，尝试解析 JSON
+  if (typeof tableStructure === 'string') {
+    try {
+      fields = JSON.parse(tableStructure);
+    } catch (e) {
+      console.error('[SDK] 解析表结构json失败:', e);
+      return [];
+    }
+  }
+
+  if (Array.isArray(fields)) {
+    return fields.map(field => {
       // 后端返回的类型已经是标准化的（文本/日期/数值），直接使用
       const type = field['类型'] || '文本';
       const fieldType = normalizeFieldCategory(field['字段分类']);
@@ -267,7 +279,7 @@ const parseTableStructure = (tableStructure) => {
         fieldType,
         category: fieldType === '维度' ? (field['类别'] || '') : '',
         dateFormat: field['日期格式'] || '',
-        selected: true
+        selected: false
       };
     });
   }
@@ -308,7 +320,7 @@ export const queryTableDetail = async (id) => {
         chineseName: item['中文名'] || '',
         description: item['描述'] || '',
         dsCode: item['dsCode'] || '',
-        fields: parseTableStructure(item['表结构'])
+        fields: parseTableStructure(item['表结构json'] || item['表结构'])
       };
     }
     return null;
@@ -367,7 +379,6 @@ export const queryDictionaryCategories = async (pageNo = 1, pageSize = 200) => {
 const buildTableStructure = (fields) => {
   if (!fields || !Array.isArray(fields)) return [];
   return fields
-    .filter(f => f.selected !== false)
     .map(field => ({
       '字段名': field.name || '',
       '类型': field.type || '文本',
