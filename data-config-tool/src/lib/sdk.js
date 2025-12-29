@@ -234,7 +234,7 @@ export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, 
         chineseName: item['中文名'] || '',
         description: item['描述'] || '',
         dsCode: item['dsCode'] || '',
-        fields: parseTableStructure(item['表结构json'] || item['表结构'])
+        fields: parseTableStructure(item['表结构json'])
       }));
       return {
         list,
@@ -320,7 +320,7 @@ export const queryTableDetail = async (id) => {
         chineseName: item['中文名'] || '',
         description: item['描述'] || '',
         dsCode: item['dsCode'] || '',
-        fields: parseTableStructure(item['表结构json'] || item['表结构'])
+        fields: parseTableStructure(item['表结构json'])
       };
     }
     return null;
@@ -415,7 +415,6 @@ export const saveTable = async (table) => {
       '中文名': table.chineseName,
       '描述': table.description,
       'dsCode': table.dsCode || '',
-      '表结构': tableStructureArray,
       '表结构json': JSON.stringify(tableStructureArray)
     };
 
