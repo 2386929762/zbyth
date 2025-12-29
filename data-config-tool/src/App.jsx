@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { DataSourceList } from '@/components/DataSourceList'
 import { TableManagement } from '@/components/TableManagement'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -60,9 +60,11 @@ function App() {
       {!isCompact && (
         <header className="border-b bg-card">
           <div className="flex items-center justify-between px-6 py-4">
-            <div>
-              <h1 className="text-2xl font-bold">数据表管理工具</h1>
-              <p className="text-sm text-muted-foreground">管理数据源和数据表配置</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/70 rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-base font-bold text-primary-foreground">数</span>
+              </div>
+              <span className="text-lg font-bold text-foreground">数据源管理</span>
             </div>
             <ThemeToggle />
           </div>
