@@ -12,7 +12,6 @@
   <div id="root"></div>
 
   <script type="module">
-    import { tryLoadGpfLoginToken, isLocalDevelopment } from './src/lib/sdk.js';
 
     // SDK 配置
     window.SDK_CONFIG = {
@@ -23,42 +22,6 @@
       // 表管理 panelCode
       tablePanelCode: 'OctoCM_BDYTH_IML_00003'
     };
-
-    async function ensureLogin(sdk, loginPayload, parentUrl) {
-      if (window.self !== window.top) {  // 在 iframe 中
-        try {
-          // 尝试获取父窗口 URL
-          parentUrl = parentUrl || window.parent.location.href;
-        } catch (e) { console.warn("Cannot access parent location", e); }
-
-        console.log('[SDK] 检测到在 iframe 中运行，父窗口 URL:', parentUrl);
-
-        if (parentUrl) {
-          // 尝试加载 GPF token
-          tryLoadGpfLoginToken(sdk, parentUrl);
-        }
-
-        // 检查是否登录成功
-        if (!sdk.user.isAuthenticated()) {
-          throw new Error("Iframe 环境下用户未登录且无法加载 GPF Token");
-        }
-        console.log('[SDK] GPF Token 加载成功，跳过默认登录');
-
-      } else {  // 不在 iframe 中
-        if (!sdk.user.isAuthenticated()) {
-          if (isLocalDevelopment(window.location.hostname)) {
-            // 执行默认登录
-            console.log('[SDK] 用户未登录，开始登录流程');
-            await sdk.user.login(loginPayload);
-            console.log('[SDK] 登录成功');
-          } else {
-            throw new Error("用户未登录，无法访问系统");
-          }
-        } else {
-          console.log('[SDK] 用户已登录，跳过登录流程');
-        }
-      }
-    }
 
     // 等待 PanelXSdk 类加载完成后再初始化
     (async function initSDK() {
@@ -73,10 +36,12 @@
           console.log('[SDK] PanelX SDK 初始化成功');
 
           // 执行登录检查
-          await ensureLogin(window.panelxSdk, {
-            userName: 'admin',
-            password: '123456'
-          });
+          await window.panelxSdk.ensureLogin(
+            {
+              userName: 'admin',
+              password: '123456'
+            }
+          );
 
           // 所有流程通过，触发事件
           window.sdkLoggedIn = true;

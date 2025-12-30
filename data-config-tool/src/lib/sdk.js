@@ -472,76 +472,6 @@ export const deleteTable = async (id) => {
   }
 };
 
-export function isLocalDevelopment(hostname) {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '' // file:// 协议时 hostname 为空
-}
-
-export function tryLoadGpfLoginToken(sdk, currentUrl) {
-  try {
-    var parsedUrl = new URL(currentUrl)
-    var hostname = parsedUrl.hostname
-
-    // 如果是本地开发环境，不处理
-    if (isLocalDevelopment(hostname)) {
-      console.log('[PanelX SDK] 本地开发环境，跳过GPF token加载')
-      return
-    }
-
-    // 从URL路径中提取应用名称
-    var pathname = parsedUrl.pathname
-    var pathParts = pathname.split('/').filter(function (part) {
-      return part.length > 0
-    })
-
-    if (pathParts.length === 0) {
-      console.log('[PanelX SDK] 无法从URL提取应用名称')
-      return
-    }
-
-    // 取最后一个路径部分作为应用名称
-    var appName = pathParts[pathParts.length - 1]
-    var sessionKey = 'SessionKey_' + appName
-
-    console.log('[PanelX SDK] 尝试从localStorage加载GPF token:', sessionKey)
-
-    // 从localStorage读取
-    var sessionData = localStorage.getItem(sessionKey)
-    if (!sessionData) {
-      console.log('[PanelX SDK] 未找到GPF session数据')
-      return
-    }
-
-    // 解析JSON数据
-    var sessionObj = JSON.parse(sessionData)
-    if (!sessionObj || !sessionObj.token) {
-      console.log('[PanelX SDK] GPF session数据格式错误')
-      return
-    }
-
-    // 设置token
-    console.log('[PanelX SDK] 成功加载GPF token')
-    sdk.auth.setToken(sessionObj.token)
-
-    // 如果有用户名，也保存用户信息
-    if (sessionObj.userName) {
-      var userInfo = {
-        name: sessionObj.userName,
-        userName: sessionObj.userName,
-      }
-      sdk.auth.setUserInfo(userInfo)
-    }
-
-    // 再次检查认证状态
-    if (!sdk.auth.isAuthenticated()) {
-      console.log('[PanelX SDK] 设置token后仍未认证，显示登录对话框')
-    } else {
-      console.log('[PanelX SDK] GPF token加载成功，用户已认证')
-    }
-  } catch (error) {
-    console.error('[PanelX SDK] 加载GPF token失败:', error)
-  }
-}
-
 export default {
   isSdkAvailable,
   queryDataSourceList,
@@ -550,6 +480,5 @@ export default {
   queryTableList,
   saveTable,
   deleteTable,
-  queryDictionaryCategories,
-  tryLoadGpfLoginToken
+  queryDictionaryCategories
 };
