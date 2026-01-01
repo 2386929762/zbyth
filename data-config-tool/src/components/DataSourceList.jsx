@@ -199,15 +199,14 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b flex items-center justify-between">
-        <h2 className="text-lg font-semibold">数据源列表</h2>
+      <div className="px-4 py-2 border-b flex items-center justify-between">
+        <h2 className="text-sm font-semibold">数据源列表</h2>
         <div className="flex gap-1">
-          <Button size="sm" variant="ghost" onClick={loadDataSources} disabled={loading}>
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={loadDataSources} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button size="sm" onClick={() => handleOpenDialog()}>
-            <Plus className="h-4 w-4 mr-1" />
-            添加
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleOpenDialog()}>
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
       </div>

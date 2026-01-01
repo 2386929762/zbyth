@@ -279,7 +279,8 @@ const parseTableStructure = (tableStructure) => {
         fieldType,
         category: fieldType === '维度' ? (field['类别'] || '') : '',
         dateFormat: field['日期格式'] || '',
-        selected: false
+        selected: false,
+        primaryKey: field['是否主键'] === true || field['是否主键'] === 'true' || field['是否主键'] === '是'
       };
     });
   }
@@ -387,7 +388,8 @@ const buildTableStructure = (fields) => {
       '字段中文名': field.comment || '',
       '字段分类': normalizeFieldCategory(field.fieldType),
       '日期格式': field.type === '日期' ? (field.dateFormat || 'yyyyMMdd') : '',
-      '类别': field.fieldType === '维度' ? (field.category || '') : ''
+      '类别': field.fieldType === '维度' ? (field.category || '') : '',
+      '是否主键': field.primaryKey || false
     }));
 };
 
@@ -429,11 +431,11 @@ export const saveTable = async (table) => {
       formData
     };
 
-    console.log('[SDK] 保存表参数:', params);
-    console.log('[SDK] 表结构数组:', tableStructureArray);
-    console.log('[SDK] 表结构json:', formData['表结构json']);
+    // console.log('[SDK] 保存表参数:', params);
+    // console.log('[SDK] 表结构数组:', tableStructureArray);
+    // console.log('[SDK] 表结构json:', formData['表结构json']);
     const result = await sdk.api.callButton(params);
-    console.log('[SDK] 保存表结果:', result);
+    // console.log('[SDK] 保存表结果:', result);
     return result;
   } catch (error) {
     console.error('[SDK] 保存表失败:', error);

@@ -130,7 +130,8 @@ const withFieldDefaults = (field = {}) => {
     fieldType: normalizedCategory,
     category: normalizedCategory === '维度' ? (field.category || '') : '',
     dateFormat: normalizedType === '日期' ? (field.dateFormat || 'yyyyMMdd') : '',
-    selected: false // 默认为 false，用作 UI 交互选择（批量删除等）
+    selected: false, // 默认为 false，用作 UI 交互选择（批量删除等）
+    primaryKey: field.primaryKey || false // 默认为 false
   }
 }
 
@@ -495,7 +496,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     )
   }
 
-  // 更新详情对话框中的字段选择状态
   const updateDetailFieldSelection = (fieldIndex) => {
     setEditingTable(prev => ({
       ...prev,
@@ -503,6 +503,23 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         index === fieldIndex ? { ...f, selected: !f.selected } : f
       )
     }))
+  }
+
+  // 更新详情对话框中的字段主键状态
+  const updateDetailFieldPrimaryKey = (fieldIndex) => {
+    setEditingTable(prev => {
+      const isTargetCurrentlyPk = prev.fields[fieldIndex].primaryKey
+      // 如果当前是主键，则取消；如果不是，则设为主键并取消其他字段的主键
+      const shouldBePk = !isTargetCurrentlyPk
+
+      return {
+        ...prev,
+        fields: prev.fields.map((f, index) => ({
+          ...f,
+          primaryKey: index === fieldIndex ? shouldBePk : (shouldBePk ? false : f.primaryKey)
+        }))
+      }
+    })
   }
 
   // 更新详情对话框中的字段分类
@@ -602,9 +619,16 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
       try {
         const detail = await queryTableDetail(table.id)
         if (detail) {
+          const detailFields = (detail.fields || []).map(withFieldDefaults);
+
+          // 如果没有主键，默认选中第一个
+          if (detailFields.length > 0 && !detailFields.some(f => f.primaryKey)) {
+            detailFields[0].primaryKey = true;
+          }
+
           setEditingTable({
             ...detail,
-            fields: (detail.fields || []).map(withFieldDefaults)
+            fields: detailFields
           })
           console.log('[TableManagement] 从 SDK 加载表详情:', detail)
         }
@@ -645,6 +669,13 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
       .map(withFieldDefaults)
     if (selectedFields.length === 0) {
       alert('请至少选择一个字段')
+      return
+    }
+
+    // 校验必须选择主键
+    const hasPrimaryKey = selectedFields.some(f => f.primaryKey)
+    if (!hasPrimaryKey) {
+      alert('请选择一个字段作为主键')
       return
     }
 
@@ -732,7 +763,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
           <div className="relative w-[300px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索表名（按Enter搜索）"
+              placeholder="搜索（按Enter搜索）"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={handleSearchKeyDown}
@@ -741,13 +772,11 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
           </div>
           {/* 刷新按钮 */}
           <Button variant="outline" size="sm" onClick={loadTables} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
             刷新
           </Button>
           {/* 添加按钮 */}
-          <Button onClick={handleOpenAddDialog}>
-            <Plus className="h-4 w-4 mr-1" />
-            添加
+          <Button onClick={handleOpenAddDialog} size="sm">
+            新增
           </Button>
         </div>
       </div>
@@ -761,11 +790,11 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>模式名</TableHead>
-              <TableHead>表名</TableHead>
-              <TableHead>中文名</TableHead>
-              <TableHead>描述</TableHead>
-              <TableHead className="w-[100px]">操作</TableHead>
+              <TableHead className="py-2">模式名</TableHead>
+              <TableHead className="py-2">表名</TableHead>
+              <TableHead className="py-2">中文名</TableHead>
+              <TableHead className="py-2">描述</TableHead>
+              <TableHead className="w-[100px] py-2">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -775,19 +804,21 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleOpenDetailDialog(table)}
               >
-                <TableCell className="text-sm text-muted-foreground">{table.schema}</TableCell>
-                <TableCell className="font-mono">{table.tableName}</TableCell>
-                <TableCell>{table.chineseName}</TableCell>
-                <TableCell>{table.description}</TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-destructive hover:text-destructive"
-                    onClick={(e) => handleDeleteTable(table.id, e)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <TableCell className="text-sm text-muted-foreground py-2">{table.schema}</TableCell>
+                <TableCell className="font-medium py-2">{table.tableName}</TableCell>
+                <TableCell className="py-2">{table.chineseName}</TableCell>
+                <TableCell className="text-muted-foreground py-2">{table.description}</TableCell>
+                <TableCell className="py-2">
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive"
+                      onClick={(e) => handleDeleteTable(table.id, e)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -818,7 +849,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="max-w-[700px] h-[600px] p-0 flex flex-col overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0">
-            <DialogTitle>选择表数据</DialogTitle>
+            <DialogTitle>选择源表</DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 flex flex-col min-h-0 px-6">
@@ -1047,6 +1078,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                               onCheckedChange={toggleSelectAllFields}
                             />
                           </TableHead>
+                          <TableHead className="w-[60px] p-2 text-center">主键</TableHead>
                           <TableHead className="p-2">字段名</TableHead>
                           <TableHead className="w-[110px] p-2">类型</TableHead>
                           <TableHead className="w-[140px] p-2">日期格式</TableHead>
@@ -1063,6 +1095,12 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                               <Checkbox
                                 checked={field.selected || false}
                                 onCheckedChange={() => updateDetailFieldSelection(index)}
+                              />
+                            </TableCell>
+                            <TableCell className="p-2 text-center">
+                              <Checkbox
+                                checked={field.primaryKey || false}
+                                onCheckedChange={() => updateDetailFieldPrimaryKey(index)}
                               />
                             </TableCell>
                             <TableCell className="font-mono p-2">
