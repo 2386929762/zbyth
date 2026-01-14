@@ -131,7 +131,8 @@ const withFieldDefaults = (field = {}) => {
     category: normalizedCategory === '维度' ? (field.category || '') : '',
     dateFormat: normalizedType === '日期' ? (field.dateFormat || 'yyyyMMdd') : '',
     selected: false, // 默认为 false，用作 UI 交互选择（批量删除等）
-    primaryKey: field.primaryKey || false // 默认为 false
+    primaryKey: field.primaryKey || false, // 默认为 false
+    sortDirection: field.sortDirection || 'asc'
   }
 }
 
@@ -507,19 +508,22 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
   // 更新详情对话框中的字段主键状态
   const updateDetailFieldPrimaryKey = (fieldIndex) => {
-    setEditingTable(prev => {
-      const isTargetCurrentlyPk = prev.fields[fieldIndex].primaryKey
-      // 如果当前是主键，则取消；如果不是，则设为主键并取消其他字段的主键
-      const shouldBePk = !isTargetCurrentlyPk
+    setEditingTable(prev => ({
+      ...prev,
+      fields: prev.fields.map((f, index) =>
+        index === fieldIndex ? { ...f, primaryKey: !f.primaryKey } : f
+      )
+    }))
+  }
 
-      return {
-        ...prev,
-        fields: prev.fields.map((f, index) => ({
-          ...f,
-          primaryKey: index === fieldIndex ? shouldBePk : (shouldBePk ? false : f.primaryKey)
-        }))
-      }
-    })
+  // 更新详情对话框中的字段排序方向
+  const updateDetailFieldSortDirection = (fieldIndex, sortDirection) => {
+    setEditingTable(prev => ({
+      ...prev,
+      fields: prev.fields.map((f, index) =>
+        index === fieldIndex ? { ...f, sortDirection } : f
+      )
+    }))
   }
 
   // 更新详情对话框中的字段分类
@@ -982,9 +986,9 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
       {/* 表结构对话框 */}
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-[1400px] max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>字段信息数据网格</DialogTitle>
+            <DialogTitle>表配置</DialogTitle>
             <DialogDescription>
               配置表的基本信息和字段属性
             </DialogDescription>
@@ -1079,6 +1083,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                             />
                           </TableHead>
                           <TableHead className="w-[60px] p-2 text-center">主键</TableHead>
+                          <TableHead className="w-[100px] p-2">排序</TableHead>
                           <TableHead className="p-2">字段名</TableHead>
                           <TableHead className="w-[110px] p-2">类型</TableHead>
                           <TableHead className="w-[140px] p-2">日期格式</TableHead>
@@ -1102,6 +1107,21 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                                 checked={field.primaryKey || false}
                                 onCheckedChange={() => updateDetailFieldPrimaryKey(index)}
                               />
+                            </TableCell>
+                            <TableCell className="p-2">
+                              <Select
+                                value={field.sortDirection || 'asc'}
+                                onValueChange={(value) => updateDetailFieldSortDirection(index, value)}
+                                disabled={!field.primaryKey}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue placeholder="无" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="asc">正序</SelectItem>
+                                  <SelectItem value="desc">倒序</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </TableCell>
                             <TableCell className="font-mono p-2">
                               <Input

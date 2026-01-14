@@ -280,7 +280,8 @@ const parseTableStructure = (tableStructure) => {
         category: fieldType === '维度' ? (field['类别'] || '') : '',
         dateFormat: field['日期格式'] || '',
         selected: false,
-        primaryKey: field['是否主键'] === true || field['是否主键'] === 'true' || field['是否主键'] === '是'
+        primaryKey: field['是否主键'] === true,
+        sortDirection: field['排序方向'] || 'asc'
       };
     });
   }
@@ -389,7 +390,8 @@ const buildTableStructure = (fields) => {
       '字段分类': normalizeFieldCategory(field.fieldType),
       '日期格式': field.type === '日期' ? (field.dateFormat || 'yyyyMMdd') : '',
       '类别': field.fieldType === '维度' ? (field.category || '') : '',
-      '是否主键': field.primaryKey || false
+      '是否主键': field.primaryKey || false,
+      '排序方向': field.sortDirection || 'asc'
     }));
 };
 
@@ -409,6 +411,7 @@ export const saveTable = async (table) => {
 
     // 构建表结构数据
     const tableStructureArray = buildTableStructure(table.fields);
+    console.log('[SDK] 表结构数据:', JSON.stringify(tableStructureArray, null, 2));
 
     // 构建 formData，前端字段 -> 后端字段
     const formData = {
