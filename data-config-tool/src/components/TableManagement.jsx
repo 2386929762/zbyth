@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Settings, Search, ChevronRight, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Settings, Search, ChevronRight, Trash2, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PaginationBar } from '@/components/PaginationBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -501,7 +501,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     setEditingTable(prev => ({
       ...prev,
       fields: prev.fields.map((f, index) =>
-        index === fieldIndex ? { ...f, selected: !f.selected } : f
+        ({ ...f, selected: index === fieldIndex })
       )
     }))
   }
@@ -576,6 +576,49 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         fields: prev.fields.map(f => ({ ...f, selected: !allSelected }))
       }
     })
+  }
+
+  // 删除单个字段
+  const handleDeleteField = (index) => {
+    setEditingTable(prev => {
+      const newFields = [...prev.fields]
+      newFields.splice(index, 1)
+      return { ...prev, fields: newFields }
+    })
+  }
+
+  // 向上移动选中字段
+  const moveFieldsUp = () => {
+    if (!editingTable || !editingTable.fields) return
+    const newFields = [...editingTable.fields]
+    let changed = false
+    // 从第二个元素开始遍历，如果当前元素选中且前一个未选中，则交换
+    for (let i = 1; i < newFields.length; i++) {
+      if (newFields[i].selected && !newFields[i - 1].selected) {
+        [newFields[i], newFields[i - 1]] = [newFields[i - 1], newFields[i]]
+        changed = true
+      }
+    }
+    if (changed) {
+      setEditingTable({ ...editingTable, fields: newFields })
+    }
+  }
+
+  // 向下移动选中字段
+  const moveFieldsDown = () => {
+    if (!editingTable || !editingTable.fields) return
+    const newFields = [...editingTable.fields]
+    let changed = false
+    // 从倒数第二个元素开始遍历，如果当前元素选中且后一个未选中，则交换
+    for (let i = newFields.length - 2; i >= 0; i--) {
+      if (newFields[i].selected && !newFields[i + 1].selected) {
+        [newFields[i], newFields[i + 1]] = [newFields[i + 1], newFields[i]]
+        changed = true
+      }
+    }
+    if (changed) {
+      setEditingTable({ ...editingTable, fields: newFields })
+    }
   }
 
   // 确定添加表
@@ -1036,15 +1079,19 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
-                        variant="destructive"
-                        onClick={() => {
-                          if (!editingTable || !editingTable.fields) return
-                          const newFields = editingTable.fields.filter(f => !f.selected)
-                          setEditingTable({ ...editingTable, fields: newFields })
-                        }}
+                        variant="outline"
+                        onClick={moveFieldsUp}
                       >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        删除选中
+                        <ArrowUp className="h-4 w-4 mr-1" />
+                        上移
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={moveFieldsDown}
+                      >
+                        <ArrowDown className="h-4 w-4 mr-1" />
+                        下移
                       </Button>
                       <Button
                         size="sm"
@@ -1068,7 +1115,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                         }}
                       >
                         <Plus className="h-4 w-4 mr-1" />
-                        添加字段
+                        添加
                       </Button>
                     </div>
                   </div>
@@ -1076,12 +1123,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                     <Table>
                       <TableHeader className="sticky top-0 bg-background">
                         <TableRow>
-                          <TableHead className="w-[30px] p-2">
-                            <Checkbox
-                              checked={editingTable?.fields?.every(f => f.selected) || false}
-                              onCheckedChange={toggleSelectAllFields}
-                            />
-                          </TableHead>
                           <TableHead className="w-[60px] p-2 text-center">主键</TableHead>
                           <TableHead className="w-[100px] p-2">排序</TableHead>
                           <TableHead className="p-2">字段名</TableHead>
@@ -1090,22 +1131,22 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                           <TableHead className="p-2">字段中文名</TableHead>
                           <TableHead className="w-[110px] p-2">字段分类</TableHead>
                           <TableHead className="w-[110px] p-2">类别</TableHead>
+                          <TableHead className="w-[60px] p-2 text-center">操作</TableHead>
 
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {editingTable?.fields?.map((field, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="p-2">
-                              <Checkbox
-                                checked={field.selected || false}
-                                onCheckedChange={() => updateDetailFieldSelection(index)}
-                              />
-                            </TableCell>
+                          <TableRow
+                            key={index}
+                            onClick={() => updateDetailFieldSelection(index)}
+                            className={`cursor-pointer hover:bg-muted/50 ${field.selected ? 'bg-muted' : ''}`}
+                          >
                             <TableCell className="p-2 text-center">
                               <Checkbox
                                 checked={field.primaryKey || false}
                                 onCheckedChange={() => updateDetailFieldPrimaryKey(index)}
+                                onClick={(e) => e.stopPropagation()}
                               />
                             </TableCell>
                             <TableCell className="p-2">
@@ -1223,7 +1264,19 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                                 </SelectContent>
                               </Select>
                             </TableCell>
-
+                            <TableCell className="p-2 text-center">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 text-destructive p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteField(index)
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         )) || []}
                       </TableBody>
