@@ -38,60 +38,7 @@ import {
   deleteTable
 } from '@/lib/sdk'
 
-// 模拟数据库模式名列表
-const mockSchemas = ['public', 'dbo', 'information_schema']
 
-// 模拟数据库表列表（更多表用于分页）
-const mockTables = [
-  { name: 'users', comment: '用户表', schema: 'public' },
-  { name: 'orders', comment: '订单表', schema: 'public' },
-  { name: 'products', comment: '产品表', schema: 'public' },
-  { name: 'categories', comment: '分类表', schema: 'public' },
-  { name: 'bap_md_cellconfig', comment: 'DO基类', schema: 'public' },
-  { name: 'bap_md_java_cjavavirtualcodedo', comment: '虚拟工程源码', schema: 'public' },
-  { name: 'bap_md_yun_artifactdefine', comment: 'DO基类', schema: 'public' },
-  { name: 'bap_md_yun_globaldepenssetting', comment: '全局依赖设置', schema: 'public' },
-  { name: 'cdimension', comment: '维度基类', schema: 'public' },
-  { name: 'cdo_attach', comment: '附件', schema: 'public' },
-  { name: 'cdo_authorize', comment: '权限验免', schema: 'public' },
-  { name: 'cdo_basic', comment: 'DO基类', schema: 'public' },
-  { name: 'cdo_domain', comment: 'DO基类', schema: 'public' },
-  { name: 'cdo_enum', comment: 'DO基类', schema: 'public' },
-]
-
-// 模拟表字段
-const getDefaultFields = () => [
-  { name: 'id', type: 'BIGINT', length: 20, precision: 0, comment: 'ID' },
-  { name: 'name', type: 'VARCHAR', length: 100, precision: 0, comment: '名称' },
-  { name: 'created_at', type: 'DATETIME', length: 0, precision: 0, comment: '创建时间' },
-]
-
-const mockTableFields = {
-  users: [
-    { name: 'id', type: 'BIGINT', length: 20, precision: 0, comment: '用户ID' },
-    { name: 'username', type: 'VARCHAR', length: 50, precision: 0, comment: '用户名' },
-    { name: 'email', type: 'VARCHAR', length: 100, precision: 0, comment: '邮箱' },
-    { name: 'created_at', type: 'DATETIME', length: 0, precision: 0, comment: '创建时间' },
-  ],
-  orders: [
-    { name: 'id', type: 'BIGINT', length: 20, precision: 0, comment: '订单ID' },
-    { name: 'user_id', type: 'BIGINT', length: 20, precision: 0, comment: '用户ID' },
-    { name: 'total_amount', type: 'DECIMAL', length: 10, precision: 2, comment: '总金额' },
-    { name: 'status', type: 'VARCHAR', length: 20, precision: 0, comment: '订单状态' },
-    { name: 'order_date', type: 'DATETIME', length: 0, precision: 0, comment: '订单日期' },
-  ],
-  products: [
-    { name: 'id', type: 'BIGINT', length: 20, precision: 0, comment: '产品ID' },
-    { name: 'name', type: 'VARCHAR', length: 100, precision: 0, comment: '产品名称' },
-    { name: 'price', type: 'DECIMAL', length: 10, precision: 2, comment: '价格' },
-    { name: 'stock', type: 'INT', length: 11, precision: 0, comment: '库存' },
-  ],
-  categories: [
-    { name: 'id', type: 'BIGINT', length: 20, precision: 0, comment: '分类ID' },
-    { name: 'name', type: 'VARCHAR', length: 50, precision: 0, comment: '分类名称' },
-    { name: 'parent_id', type: 'BIGINT', length: 20, precision: 0, comment: '父分类ID' },
-  ],
-}
 
 const TYPE_OPTIONS = [
   { value: '文本', label: '文本' },
@@ -471,19 +418,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         setLoadingDetail(false)
       }
     } else {
-      // SDK不可用时使用默认字段
-      const fields = getDefaultFields()
-      setEditingTable(prev => ({
-        ...prev,
-        fields: fields.map(f => ({
-          ...f,
-          type: normalizeDbType(f.type),
-          fieldType: '属性',
-          category: '',
-          dateFormat: normalizeDbType(f.type) === '日期' ? 'yyyyMMdd' : '',
-          selected: true
-        }))
-      }))
       setLoadingDetail(false)
     }
   }
@@ -649,13 +583,8 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
       return
     }
 
-    const selectedFields = tableFields.filter(f => f.selected)
-    if (selectedFields.length === 0) {
-      alert('请至少选择一个字段')
-      return
-    }
 
-    const tableInfo = mockTables.find(t => t.name === selectedTableName)
+    const tableInfo = tablesFromDb.find(t => t.name === selectedTableName)
     const newTable = {
       id: Date.now(),
       tableName: selectedTableName,
@@ -663,7 +592,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
       description: formData.description || '',
       dsCode: selectedSource.id,
       schema: selectedSchema,
-      fields: selectedFields
+      fields: []
     }
 
     setTables([...tables, newTable])
@@ -731,7 +660,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     const selectedFields = editingTable.fields
       .map(withFieldDefaults)
     if (selectedFields.length === 0) {
-      alert('请至少选择一个字段')
+      alert('请至少添加一个字段')
       return
     }
 
@@ -1199,7 +1128,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                       </div>
                     </div>
 
-                    <TabsContent value="structure" className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden">
+                    <TabsContent value="structure" forceMount={true} className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden">
                       <div className="flex-1 border rounded-md overflow-auto">
                         <Table>
                           <TableHeader className="sticky top-0 bg-background">
@@ -1363,7 +1292,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                     </TabsContent>
 
                     {editingTable.type === 'sql' && (
-                      <TabsContent value="sql" className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden p-1">
+                      <TabsContent value="sql" forceMount={true} className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden p-1">
                         <textarea
                           className="flex-1 w-full p-4 font-mono text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-muted/30"
                           placeholder="在此输入 SQL 语句..."
