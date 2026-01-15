@@ -171,6 +171,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
   const [loadingCategories, setLoadingCategories] = useState(false)
   const [activeTab, setActiveTab] = useState('structure')
   const [sqlContent, setSqlContent] = useState('')
+  const [addTableMode, setAddTableMode] = useState('table') // 'table' | 'sql'
 
   // 用 useRef 记录当前数据源ID，防止重复加载
   const lastLoadedSourceIdRef = React.useRef(null)
@@ -627,6 +628,22 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
   // 确定添加表
   const handleConfirmAddTable = () => {
+    // SQL 模式直接进入配置
+    if (addTableMode === 'sql') {
+      const newTable = {
+        id: Date.now(),
+        tableName: '$SQLTable',
+        description: '',
+        dsCode: selectedSource.id,
+        schema: selectedSchema,
+        fields: [],
+        type: 'sql' // 标记为 SQL 表
+      }
+
+      handleOpenDetailDialog(newTable, 'sql') // 传入 'sql' tab
+      return
+    }
+
     if (!selectedTableName) {
       alert('请选择一个表')
       return
@@ -656,8 +673,9 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
   // 加载状态用于详情对话框
   const [loadingDetail, setLoadingDetail] = useState(false)
 
-  const handleOpenDetailDialog = async (table) => {
+  const handleOpenDetailDialog = async (table, initialTab = 'structure') => {
     // 先设置基本信息并打开对话框
+    setActiveTab(initialTab) // 设置初始 Tab
     setEditingTable({
       ...table,
       fields: (table.fields || []).map(withFieldDefaults)
@@ -898,129 +916,167 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
           </DialogHeader>
 
           <div className="flex-1 flex flex-col min-h-0 px-6">
-            {/* 筛选区域 */}
             <div className="pb-3 space-y-3 flex-shrink-0">
-              {/* 模式名选择 */}
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">模式名</Label>
-                <Select
-                  value={selectedSchema}
-                  onValueChange={(value) => {
-                    setSelectedSchema(value)
-                    setCurrentPage(1)
-                  }}
-                  disabled={loadingSchemas}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {schemas.length > 0 ? (
-                      schemas.map(schema => (
-                        <SelectItem key={schema} value={schema}>
-                          {schema}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="public">public</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 搜索框 */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="搜索"
-                  value={tableSearchText}
-                  onChange={(e) => {
-                    setTableSearchText(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                  className="pl-9 h-9"
-                />
-              </div>
-            </div>
-
-            {/* 表列表 - 固定高度可滚动 */}
-            <div className="flex-1 overflow-auto border rounded-md min-h-0">
-              {loadingDbTables ? (
-                <div className="flex items-center justify-center py-8 text-muted-foreground">
-                  加载中...
+              {/* 模式名和 SQL 模式选择 */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Label className="w-14 text-right">模式名</Label>
+                  <Select
+                    value={selectedSchema}
+                    onValueChange={(value) => {
+                      setSelectedSchema(value)
+                      setCurrentPage(1)
+                    }}
+                    disabled={loadingSchemas}
+                  >
+                    <SelectTrigger className="h-9 flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {schemas.length > 0 ? (
+                        schemas.map(schema => (
+                          <SelectItem key={schema} value={schema}>
+                            {schema}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="public">public</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
-                <Table className="w-full">
-                  <TableHeader className="sticky top-0 bg-background z-10">
-                    <TableRow>
-                      <TableHead>表名</TableHead>
-                      <TableHead>中文名</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedTables.map((table) => (
-                      <TableRow
-                        key={table.name}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleSelectTableRow(table.name)}
-                      >
-                        <TableCell className="font-mono text-sm">{table.name}</TableCell>
-                        <TableCell className="text-sm">{table.comment}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+
+                <div className="flex items-center gap-4 pl-[4rem]">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tm_mode"
+                      value="table"
+                      checked={addTableMode === 'table'}
+                      onChange={e => setAddTableMode(e.target.value)}
+                      className="accent-primary h-4 w-4"
+                    />
+                    <span className="text-sm">源表</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tm_mode"
+                      value="sql"
+                      checked={addTableMode === 'sql'}
+                      onChange={e => setAddTableMode(e.target.value)}
+                      className="accent-primary h-4 w-4"
+                    />
+                    <span className="text-sm">SQL</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 搜索框 - 仅在 table 模式下显示 */}
+              {addTableMode === 'table' && (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="搜索"
+                    value={tableSearchText}
+                    onChange={(e) => {
+                      setTableSearchText(e.target.value)
+                      setCurrentPage(1)
+                    }}
+                    className="pl-9 h-9"
+                  />
+                </div>
               )}
             </div>
 
-            {/* 分页 */}
-            <div className="py-3 flex items-center justify-between text-sm flex-shrink-0">
-              <div className="text-muted-foreground">
-                共{filteredTables.length}条
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  上一页
-                </Button>
-                <span className="text-muted-foreground">
-                  {currentPage} / {totalPages || 1}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage >= totalPages}
-                >
-                  下一页
-                </Button>
-                <Select
-                  value={pageSize.toString()}
-                  onValueChange={(value) => {
-                    setPageSize(Number(value))
-                    setCurrentPage(1)
-                  }}
-                >
-                  <SelectTrigger className="w-24 h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="50">50条/页</SelectItem>
-                    <SelectItem value="100">100条/页</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {addTableMode === 'table' ? (
+              <>
+                <div className="flex-1 overflow-auto border rounded-md min-h-0">
+                  {loadingDbTables ? (
+                    <div className="flex items-center justify-center py-8 text-muted-foreground">
+                      加载中...
+                    </div>
+                  ) : (
+                    <Table className="w-full">
+                      <TableHeader className="sticky top-0 bg-background z-10">
+                        <TableRow>
+                          <TableHead>表名</TableHead>
+                          <TableHead>中文名</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedTables.map((table) => (
+                          <TableRow
+                            key={table.name}
+                            className={`cursor-pointer ${selectedTableName === table.name ? 'bg-muted' : 'hover:bg-muted/50'}`}
+                            onClick={() => handleSelectTableRow(table.name)}
+                          >
+                            <TableCell className="font-mono text-sm">{table.name}</TableCell>
+                            <TableCell className="text-sm">{table.comment}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+
+                <div className="py-3 flex items-center justify-between text-sm flex-shrink-0">
+                  <div className="text-muted-foreground">
+                    共{filteredTables.length}条
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      上一页
+                    </Button>
+                    <span className="text-muted-foreground">
+                      {currentPage} / {totalPages || 1}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                    >
+                      下一页
+                    </Button>
+                    <Select
+                      value={pageSize.toString()}
+                      onValueChange={(value) => {
+                        setPageSize(Number(value))
+                        setCurrentPage(1)
+                      }}
+                    >
+                      <SelectTrigger className="w-24 h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="50">50条/页</SelectItem>
+                        <SelectItem value="100">100条/页</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </>
+            ) : (
+              // SQL 模式下占位，保持高度不变
+              <div className="flex-1"></div>
+            )}
           </div>
 
           <DialogFooter className="px-6 py-4 border-t flex-shrink-0">
             <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-              关闭
+              关 闭
             </Button>
+            {addTableMode === 'sql' && (
+              <Button onClick={handleConfirmAddTable}>
+                下一步
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1069,14 +1125,22 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-0">
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+                  <Tabs
+                    value={editingTable.type === 'sql' ? activeTab : 'structure'}
+                    onValueChange={setActiveTab}
+                    className="flex-1 flex flex-col min-h-0"
+                  >
                     <div className="flex items-center justify-between mb-2">
-                      <TabsList>
-                        <TabsTrigger value="structure">表结构</TabsTrigger>
-                        <TabsTrigger value="sql">SQL</TabsTrigger>
-                      </TabsList>
+                      {editingTable.type === 'sql' ? (
+                        <TabsList>
+                          <TabsTrigger value="structure">表结构</TabsTrigger>
+                          <TabsTrigger value="sql">SQL</TabsTrigger>
+                        </TabsList>
+                      ) : (
+                        <Label className="text-sm font-medium">表结构</Label>
+                      )}
                       <div className="flex items-center gap-2">
-                        {activeTab === 'structure' ? (
+                        {(activeTab === 'structure' || editingTable.type !== 'sql') ? (
                           <>
                             <Button
                               size="sm"
@@ -1117,18 +1181,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                             >
                               <Plus className="h-4 w-4 mr-1" />
                               添加字段
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => {
-                                if (!editingTable || !editingTable.fields) return
-                                const newFields = editingTable.fields.filter(f => !f.selected)
-                                setEditingTable({ ...editingTable, fields: newFields })
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 mr-1" />
-                              删除选中
                             </Button>
                           </>
                         ) : (
@@ -1310,14 +1362,16 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="sql" className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden p-1">
-                      <textarea
-                        className="flex-1 w-full p-4 font-mono text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-muted/30"
-                        placeholder="在此输入 SQL 语句..."
-                        value={sqlContent}
-                        onChange={(e) => setSqlContent(e.target.value)}
-                      />
-                    </TabsContent>
+                    {editingTable.type === 'sql' && (
+                      <TabsContent value="sql" className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden p-1">
+                        <textarea
+                          className="flex-1 w-full p-4 font-mono text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-muted/30"
+                          placeholder="在此输入 SQL 语句..."
+                          value={sqlContent}
+                          onChange={(e) => setSqlContent(e.target.value)}
+                        />
+                      </TabsContent>
+                    )}
                   </Tabs>
                 </div>
               </div>
