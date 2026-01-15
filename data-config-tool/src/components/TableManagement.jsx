@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Settings, Search, ChevronRight, Trash2, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, Settings, Search, ChevronRight, Trash2, RefreshCw, ArrowUp, ArrowDown, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PaginationBar } from '@/components/PaginationBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   isSdkAvailable,
   queryTableList,
@@ -166,7 +167,10 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
   const [formData, setFormData] = useState({ chineseName: '', description: '' })
   const [editingTable, setEditingTable] = useState(null)
   const [categoryOptions, setCategoryOptions] = useState([])
+
   const [loadingCategories, setLoadingCategories] = useState(false)
+  const [activeTab, setActiveTab] = useState('structure')
+  const [sqlContent, setSqlContent] = useState('')
 
   // 用 useRef 记录当前数据源ID，防止重复加载
   const lastLoadedSourceIdRef = React.useRef(null)
@@ -1023,7 +1027,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
       {/* 表结构对话框 */}
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-        <DialogContent className="max-w-[1400px] max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-[1400px] h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>表配置</DialogTitle>
           </DialogHeader>
@@ -1061,220 +1065,260 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                   <Input
                     value={editingTable.description}
                     onChange={(e) => setEditingTable({ ...editingTable, description: e.target.value })}
-                    placeholder="输入表的描述信息"
-                    className="flex-1"
                   />
                 </div>
 
-                <div className="flex-1 flex flex-col min-h-0 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>表结构</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={moveFieldsUp}
-                      >
-                        <ArrowUp className="h-4 w-4 mr-1" />
-                        上移
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={moveFieldsDown}
-                      >
-                        <ArrowDown className="h-4 w-4 mr-1" />
-                        下移
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          const newField = {
-                            name: '',
-                            type: '文本',
-                            length: '',
-                            precision: '',
-                            comment: '',
-                            fieldType: '属性',
-                            category: '',
-                            dateFormat: '',
-                            selected: false,
-                            isNew: true
-                          }
-                          setEditingTable({
-                            ...editingTable,
-                            fields: [...(editingTable.fields || []), newField]
-                          })
-                        }}
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        添加
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex-1 border rounded-md overflow-auto">
-                    <Table>
-                      <TableHeader className="sticky top-0 bg-background">
-                        <TableRow>
-                          <TableHead className="w-[60px] p-2 text-center">主键</TableHead>
-                          <TableHead className="w-[100px] p-2">排序</TableHead>
-                          <TableHead className="p-2">字段名</TableHead>
-                          <TableHead className="w-[110px] p-2">类型</TableHead>
-                          <TableHead className="w-[140px] p-2">日期格式</TableHead>
-                          <TableHead className="p-2">字段中文名</TableHead>
-                          <TableHead className="w-[110px] p-2">字段分类</TableHead>
-                          <TableHead className="w-[110px] p-2">类别</TableHead>
-                          <TableHead className="w-[60px] p-2 text-center">操作</TableHead>
-
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {editingTable?.fields?.map((field, index) => (
-                          <TableRow
-                            key={index}
-                            onClick={() => updateDetailFieldSelection(index)}
-                            className={`cursor-pointer hover:bg-muted/50 ${field.selected ? 'bg-muted' : ''}`}
+                <div className="flex-1 flex flex-col min-h-0">
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <TabsList>
+                        <TabsTrigger value="structure">表结构</TabsTrigger>
+                        <TabsTrigger value="sql">SQL</TabsTrigger>
+                      </TabsList>
+                      <div className="flex items-center gap-2">
+                        {activeTab === 'structure' ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={moveFieldsUp}
+                            >
+                              <ArrowUp className="h-4 w-4 mr-1" />
+                              上移
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={moveFieldsDown}
+                            >
+                              <ArrowDown className="h-4 w-4 mr-1" />
+                              下移
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const newField = {
+                                  name: '',
+                                  type: '文本',
+                                  length: '',
+                                  precision: '',
+                                  comment: '',
+                                  fieldType: '属性',
+                                  category: '',
+                                  dateFormat: '',
+                                  selected: false,
+                                  isNew: true
+                                }
+                                setEditingTable({
+                                  ...editingTable,
+                                  fields: [...(editingTable.fields || []), newField]
+                                })
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              添加字段
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                if (!editingTable || !editingTable.fields) return
+                                const newFields = editingTable.fields.filter(f => !f.selected)
+                                setEditingTable({ ...editingTable, fields: newFields })
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              删除选中
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              console.log('运行 SQL:', sqlContent)
+                              // TODO: Implement SQL execution
+                              alert('SQL 运行功能开发中...')
+                            }}
                           >
-                            <TableCell className="p-2 text-center">
-                              <Checkbox
-                                checked={field.primaryKey || false}
-                                onCheckedChange={() => updateDetailFieldPrimaryKey(index)}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </TableCell>
-                            <TableCell className="p-2">
-                              <Select
-                                value={field.sortDirection || 'asc'}
-                                onValueChange={(value) => updateDetailFieldSortDirection(index, value)}
-                                disabled={!field.primaryKey}
-                              >
-                                <SelectTrigger className="h-8">
-                                  <SelectValue placeholder="无" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="asc">正序</SelectItem>
-                                  <SelectItem value="desc">倒序</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="font-mono p-2">
-                              <Input
-                                value={field.name}
-                                onChange={(e) => {
-                                  const newFields = [...editingTable.fields]
-                                  newFields[index] = { ...newFields[index], name: e.target.value }
-                                  setEditingTable({ ...editingTable, fields: newFields })
-                                }}
-                                className="h-8"
-                                placeholder="字段名"
-                              />
-                            </TableCell>
-                            <TableCell className="p-2">
-                              <Select
-                                value={field.type || '文本'}
-                                onValueChange={(value) => updateDetailFieldDataType(index, value)}
-                              >
-                                <SelectTrigger className="h-8">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {TYPE_OPTIONS.map(option => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
+                            <Play className="h-4 w-4 mr-1" />
+                            运行
+                          </Button>
+                        )}
+                      </div>
+                    </div>
 
-                            <TableCell className="p-2">
-                              <Input
-                                value={field.dateFormat || ''}
-                                onChange={(e) => {
-                                  const newFields = [...editingTable.fields]
-                                  newFields[index] = { ...newFields[index], dateFormat: e.target.value }
-                                  setEditingTable({ ...editingTable, fields: newFields })
-                                }}
-                                className="h-8 w-32"
-                                placeholder="yyyyMMdd"
-                                disabled={field.type !== '日期'}
-                              />
-                            </TableCell>
-                            <TableCell className="p-2">
-                              <Input
-                                value={field.comment}
-                                onChange={(e) => {
-                                  const newFields = [...editingTable.fields]
-                                  newFields[index] = { ...newFields[index], comment: e.target.value }
-                                  setEditingTable({ ...editingTable, fields: newFields })
-                                }}
-                                className="h-8"
-                                placeholder="字段中文名"
-                              />
-                            </TableCell>
-                            <TableCell className="p-2">
-                              <Select
-                                value={field.fieldType || '属性'}
-                                onValueChange={(value) => updateDetailFieldType(index, value)}
+                    <TabsContent value="structure" className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden">
+                      <div className="flex-1 border rounded-md overflow-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead className="w-[60px] p-2 text-center">主键</TableHead>
+                              <TableHead className="w-[100px] p-2">排序</TableHead>
+                              <TableHead className="p-2">字段名</TableHead>
+                              <TableHead className="w-[110px] p-2">类型</TableHead>
+                              <TableHead className="w-[140px] p-2">日期格式</TableHead>
+                              <TableHead className="p-2">字段中文名</TableHead>
+                              <TableHead className="w-[110px] p-2">字段分类</TableHead>
+                              <TableHead className="w-[110px] p-2">类别</TableHead>
+                              <TableHead className="w-[60px] p-2 text-center">操作</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {editingTable?.fields?.map((field, index) => (
+                              <TableRow
+                                key={index}
+                                onClick={() => updateDetailFieldSelection(index)}
+                                className={`cursor-pointer hover:bg-muted/50 ${field.selected ? 'bg-muted' : ''}`}
                               >
-                                <SelectTrigger className="h-8">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="度量">度量</SelectItem>
-                                  <SelectItem value="维度">维度</SelectItem>
-                                  <SelectItem value="属性">属性</SelectItem>
-                                  {/* <SelectItem value="指标编号">指标编号</SelectItem>
-                                  <SelectItem value="指标名称">指标名称</SelectItem> */}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="p-2">
-                              <Select
-                                value={field.category || ''}
-                                onValueChange={(value) => updateDetailFieldCategory(index, value)}
-                                disabled={field.fieldType !== '维度' || loadingCategories}
-                              >
-                                <SelectTrigger className="h-8">
-                                  <SelectValue placeholder={loadingCategories ? '加载中...' : '选择类别'} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {loadingCategories && (
-                                    <SelectItem value="__loading" disabled>
-                                      加载中...
-                                    </SelectItem>
-                                  )}
-                                  {!loadingCategories && categoryOptions.length === 0 && (
-                                    <SelectItem value="__none" disabled>
-                                      暂无类别数据
-                                    </SelectItem>
-                                  )}
-                                  {!loadingCategories && categoryOptions.map(option => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="p-2 text-center">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 text-destructive p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDeleteField(index)
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        )) || []}
-                      </TableBody>
-                    </Table>
-                  </div>
+                                <TableCell className="p-2 text-center">
+                                  <Checkbox
+                                    checked={field.primaryKey || false}
+                                    onCheckedChange={() => updateDetailFieldPrimaryKey(index)}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </TableCell>
+                                <TableCell className="p-2">
+                                  <Select
+                                    value={field.sortDirection || 'asc'}
+                                    onValueChange={(value) => updateDetailFieldSortDirection(index, value)}
+                                    disabled={!field.primaryKey}
+                                  >
+                                    <SelectTrigger className="h-8">
+                                      <SelectValue placeholder="无" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="asc">正序</SelectItem>
+                                      <SelectItem value="desc">倒序</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell className="font-mono p-2">
+                                  <Input
+                                    value={field.name}
+                                    onChange={(e) => {
+                                      const newFields = [...editingTable.fields]
+                                      newFields[index] = { ...newFields[index], name: e.target.value }
+                                      setEditingTable({ ...editingTable, fields: newFields })
+                                    }}
+                                    className="h-8"
+                                    placeholder="字段名"
+                                  />
+                                </TableCell>
+                                <TableCell className="p-2">
+                                  <Select
+                                    value={field.type || '文本'}
+                                    onValueChange={(value) => updateDetailFieldDataType(index, value)}
+                                  >
+                                    <SelectTrigger className="h-8">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {TYPE_OPTIONS.map(option => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+
+                                <TableCell className="p-2">
+                                  <Input
+                                    value={field.dateFormat || ''}
+                                    onChange={(e) => {
+                                      const newFields = [...editingTable.fields]
+                                      newFields[index] = { ...newFields[index], dateFormat: e.target.value }
+                                      setEditingTable({ ...editingTable, fields: newFields })
+                                    }}
+                                    className="h-8 w-32"
+                                    placeholder="yyyyMMdd"
+                                    disabled={field.type !== '日期'}
+                                  />
+                                </TableCell>
+                                <TableCell className="p-2">
+                                  <Input
+                                    value={field.comment}
+                                    onChange={(e) => {
+                                      const newFields = [...editingTable.fields]
+                                      newFields[index] = { ...newFields[index], comment: e.target.value }
+                                      setEditingTable({ ...editingTable, fields: newFields })
+                                    }}
+                                    className="h-8"
+                                    placeholder="字段中文名"
+                                  />
+                                </TableCell>
+                                <TableCell className="p-2">
+                                  <Select
+                                    value={field.fieldType || '属性'}
+                                    onValueChange={(value) => updateDetailFieldType(index, value)}
+                                  >
+                                    <SelectTrigger className="h-8">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="度量">度量</SelectItem>
+                                      <SelectItem value="维度">维度</SelectItem>
+                                      <SelectItem value="属性">属性</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell className="p-2">
+                                  <Select
+                                    value={field.category || ''}
+                                    onValueChange={(value) => updateDetailFieldCategory(index, value)}
+                                    disabled={field.fieldType !== '维度' || loadingCategories}
+                                  >
+                                    <SelectTrigger className="h-8">
+                                      <SelectValue placeholder={loadingCategories ? '加载中...' : '选择类别'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {loadingCategories && (
+                                        <SelectItem value="__loading" disabled>
+                                          加载中...
+                                        </SelectItem>
+                                      )}
+                                      {!loadingCategories && categoryOptions.length === 0 && (
+                                        <SelectItem value="__none" disabled>
+                                          暂无类别数据
+                                        </SelectItem>
+                                      )}
+                                      {!loadingCategories && categoryOptions.map(option => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell className="p-2 text-center">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-destructive p-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteField(index)
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            )) || []}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="sql" className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden p-1">
+                      <textarea
+                        className="flex-1 w-full p-4 font-mono text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-muted/30"
+                        placeholder="在此输入 SQL 语句..."
+                        value={sqlContent}
+                        onChange={(e) => setSqlContent(e.target.value)}
+                      />
+                    </TabsContent>
+                  </Tabs>
                 </div>
               </div>
             )}
