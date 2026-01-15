@@ -667,12 +667,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         const detail = await queryTableDetail(table.id)
         if (detail) {
           const detailFields = (detail.fields || []).map(withFieldDefaults);
-
-          // 如果没有主键，默认选中第一个
-          if (detailFields.length > 0 && !detailFields.some(f => f.primaryKey)) {
-            detailFields[0].primaryKey = true;
-          }
-
           setEditingTable({
             ...detail,
             fields: detailFields
@@ -1032,9 +1026,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         <DialogContent className="max-w-[1400px] max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>表配置</DialogTitle>
-            <DialogDescription>
-              配置表的基本信息和字段属性
-            </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 flex flex-col min-h-0 px-4 overflow-hidden">
@@ -1046,30 +1037,32 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
             {editingTable && !loadingDetail && (
               <div className="flex-1 flex flex-col min-h-0 space-y-4">
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>模式名</Label>
-                    <Input value={editingTable.schema} disabled className="bg-muted" />
+                  <div className="flex items-center gap-2">
+                    <Label className="w-14 text-right">模式名</Label>
+                    <Input value={editingTable.schema} disabled className="bg-muted flex-1" />
                   </div>
-                  <div className="space-y-2">
-                    <Label>表名</Label>
-                    <Input value={editingTable.tableName} disabled className="bg-muted" />
+                  <div className="flex items-center gap-2">
+                    <Label className="w-14 text-right">表名</Label>
+                    <Input value={editingTable.tableName} disabled className="bg-muted flex-1" />
                   </div>
-                  <div className="space-y-2">
-                    <Label>中文名</Label>
+                  <div className="flex items-center gap-2">
+                    <Label className="w-14 text-right">中文名</Label>
                     <Input
                       value={editingTable.chineseName}
                       onChange={(e) => setEditingTable({ ...editingTable, chineseName: e.target.value })}
                       placeholder="输入表的中文名称"
+                      className="flex-1"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>描述</Label>
+                <div className="flex items-center gap-2">
+                  <Label className="w-14 text-right">描述</Label>
                   <Input
                     value={editingTable.description}
                     onChange={(e) => setEditingTable({ ...editingTable, description: e.target.value })}
                     placeholder="输入表的描述信息"
+                    className="flex-1"
                   />
                 </div>
 
