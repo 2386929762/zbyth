@@ -102,18 +102,6 @@ export const queryDataSourceList = async () => {
   }
 };
 
-/**
- * 保存数据源（新增或更新）
- * @param {Object} dataSource - 数据源对象
- * @param {string} dataSource.id - 编号（更新时必传）
- * @param {string} dataSource.name - 数据源名称
- * @param {string} dataSource.type - 数据库类型
- * @param {string} dataSource.host - 主机地址
- * @param {string} dataSource.port - 端口
- * @param {string} dataSource.database - 数据库名
- * @param {string} dataSource.username - 用户名
- * @param {string} dataSource.password - 密码
- */
 export const saveDataSource = async (dataSource) => {
   const sdk = getSdk();
   if (!sdk) {
@@ -155,10 +143,6 @@ export const saveDataSource = async (dataSource) => {
   }
 };
 
-/**
- * 删除数据源
- * @param {string} id - 数据源编号
- */
 export const deleteDataSource = async (id) => {
   const sdk = getSdk();
   if (!sdk) {
@@ -188,11 +172,6 @@ export const deleteDataSource = async (id) => {
 
 // ==================== 表管理 API ====================
 
-/**
- * 查询表列表
- * @param {string} dsCode - 数据源编号（可选，用于筛选）
- * @param {string} keyword - 搜索关键词（可选，用于搜索）
- */
 export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, pageSize = 100) => {
   const sdk = getSdk();
   if (!sdk) {
@@ -203,7 +182,6 @@ export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, 
   try {
     const config = getConfig();
     const condition = {};
-    // 如果有数据源编号，加入筛选条件
     if (dsCode) {
       condition['dsCode'] = dsCode;
     }
@@ -212,10 +190,12 @@ export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, 
       panelCode: config.tablePanelCode,
       condition,
       pageNo,
-      pageSize
+      pageSize,
+      options: {
+        'excludeFields': ['表结构json']
+      }
     };
 
-    // 如果有搜索关键词，添加到 params
     console.log('[SDK] keyword 参数:', keyword, '类型:', typeof keyword, '是否添加:', !!keyword)
     if (keyword) {
       params.keyword = keyword;
@@ -235,7 +215,6 @@ export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, 
         chineseName: item['中文名'] || '',
         description: item['描述'] || '',
         dsCode: item['dsCode'] || '',
-        fields: parseTableStructure(item['表结构json'])
       }));
       return {
         list,
@@ -329,10 +308,6 @@ const parseSqlResultToFields = (result) => {
   return [];
 };
 
-/**
- * 查询单个表详情
- * @param {string} id - 表编号
- */
 export const queryTableDetail = async (id) => {
   const sdk = getSdk();
   if (!sdk) {
@@ -363,6 +338,8 @@ export const queryTableDetail = async (id) => {
         chineseName: item['中文名'] || '',
         description: item['描述'] || '',
         dsCode: item['dsCode'] || '',
+        type: item['tableType'] || 'table',
+        querySql: item['querySql'] || '',
         fields: parseTableStructure(item['表结构json'])
       };
     }
@@ -559,6 +536,8 @@ export const saveTable = async (table) => {
       '中文名': table.chineseName,
       '描述': table.description,
       'dsCode': table.dsCode || '',
+      'tableType': table.type || 'table',
+      'querySql': table.querySql || '',
       '表结构json': JSON.stringify(tableStructureArray)
     };
 
@@ -585,10 +564,6 @@ export const saveTable = async (table) => {
   }
 };
 
-/**
- * 删除表
- * @param {string} id - 表编号
- */
 export const deleteTable = async (id) => {
   const sdk = getSdk();
   if (!sdk) {

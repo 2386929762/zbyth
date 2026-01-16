@@ -450,8 +450,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     // SQL 模式直接进入配置
     if (addTableMode === 'sql') {
       const newTable = {
-        id: Date.now(),
-        tableName: '$SQLTable',
+        tableName: '',
         description: '',
         dsCode: selectedSource.id,
         schema: selectedSchema,
@@ -471,7 +470,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
     const tableInfo = tablesFromDb.find(t => t.name === selectedTableName)
     const newTable = {
-      id: Date.now(),
       tableName: selectedTableName,
       chineseName: formData.chineseName || tableInfo?.comment || '',
       description: formData.description || '',
@@ -503,11 +501,15 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         const detail = await queryTableDetail(table.id)
         if (detail) {
           const detailFields = (detail.fields || []).map(withFieldDefaults);
+
           setEditingTable({
             ...detail,
             fields: detailFields
           })
-          console.log('[TableManagement] 从 SDK 加载表详情:', detail)
+
+          if (detail.type === 'sql') {
+            setSqlContent(detail.querySql || '')
+          }
         }
       } catch (error) {
         console.error('[TableManagement] 加载表详情失败:', error)
@@ -547,6 +549,11 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
   const handleSaveTableDetail = async () => {
     if (!editingTable) return
 
+    if (!editingTable.tableName || !editingTable.tableName.trim()) {
+      toast({ variant: "destructive", title: "校验失败", description: "请输入表名" })
+      return
+    }
+
     const selectedFields = editingTable.fields
       .map(withFieldDefaults)
     if (selectedFields.length === 0) {
@@ -580,7 +587,9 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         chineseName: editingTable.chineseName,
         description: editingTable.description,
         dsCode: selectedSource.id,
-        fields: selectedFields
+        fields: selectedFields,
+        type: editingTable.type || 'table',
+        querySql: editingTable.type === 'sql' ? sqlContent : ''
       }
 
       console.log('[TableManagement] 准备保存的表数据:', tableData)
@@ -688,7 +697,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
           <TableBody>
             {currentTables.map((table) => (
               <TableRow
-                key={table.id}
+                key={table.id || table.tableName}
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleOpenDetailDialog(table)}
               >
@@ -928,7 +937,12 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                   </div>
                   <div className="flex items-center gap-2">
                     <Label className="w-14 text-right">表名</Label>
-                    <Input value={editingTable.tableName} disabled className="bg-muted flex-1" />
+                    <Input
+                      value={editingTable.tableName}
+                      disabled={editingTable.type !== 'sql'}
+                      onChange={(e) => setEditingTable({ ...editingTable, tableName: e.target.value })}
+                      className={editingTable.type !== 'sql' ? "bg-muted flex-1" : "flex-1"}
+                    />
                   </div>
                   <div className="flex items-center gap-2">
                     <Label className="w-14 text-right">中文名</Label>
