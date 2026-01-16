@@ -35,7 +35,13 @@ import {
   queryTableList,
   queryTableDetail,
   saveTable,
-  deleteTable
+  deleteTable,
+  queryDictionaryCategories,
+  querySchemaList,
+  queryDbTableList,
+  queryTableStructure,
+  normalizeDbType,
+  normalizeFieldCategory
 } from '@/lib/sdk'
 
 
@@ -46,27 +52,7 @@ const TYPE_OPTIONS = [
   { value: '数值', label: '数值' }
 ]
 
-const TYPE_MAP = {
-  文本: ['CHAR', 'NCHAR', 'VARCHAR', 'VARCHAR2', 'NVARCHAR', 'NVARCHAR2', 'TEXT', 'CLOB', 'STRING', 'LONGTEXT', 'MEDIUMTEXT'],
-  日期: ['DATE', 'DATETIME', 'TIMESTAMP', 'TIME', 'YEAR'],
-  数值: ['NUMBER', 'NUMERIC', 'DECIMAL', 'BIGINT', 'INT', 'INTEGER', 'SMALLINT', 'TINYINT', 'DOUBLE', 'FLOAT', 'REAL', 'MONEY']
-}
 
-const normalizeDbType = (dbType) => {
-  const raw = String(dbType || '').toUpperCase()
-  const base = raw.replace(/\(.*/, '')
-
-  if (TYPE_MAP.日期.some(t => base.includes(t))) return '日期'
-  if (TYPE_MAP.数值.some(t => base.includes(t))) return '数值'
-  return '文本'
-}
-
-const normalizeFieldCategory = (fieldType) => {
-  if (fieldType === '维度' || fieldType === '度量' || fieldType === '属性') {
-    return fieldType
-  }
-  return '属性'
-}
 
 const withFieldDefaults = (field = {}) => {
   const normalizedType = TYPE_OPTIONS.some(opt => opt.value === field.type) ? field.type : normalizeDbType(field.type)
@@ -160,30 +146,8 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
     setLoadingCategories(true)
     try {
-      const sdk = window.panelxSdk
-      const params = {
-        panelCode: 'IML_00011',
-        buttonName: '查询码值类型',
-        buttonParam: {
-          configName: '数据字典类别表'
-        }
-      }
-
-      const result = await sdk.api.callButton(params)
-      console.log('[TableManagement] 查询数据字典类别结果:', result)
-
-      if (result && result.data && result.data.right) {
-        // right 是二维数组，每个元素是 [type_id, type_name]
-        // 第一个字段作为 value，第二个字段作为 label
-        const list = result.data.right.map(row => ({
-          value: row[0] ? String(row[0]) : '',
-          label: row[1] ? String(row[1]) : row[0]
-        })).filter(item => item.value)
-
-        setCategoryOptions(list)
-      } else {
-        setCategoryOptions([])
-      }
+      const list = await queryDictionaryCategories()
+      setCategoryOptions(list)
     } catch (error) {
       console.error('[TableManagement] 加载数据字典类别失败:', error)
       setCategoryOptions([])
@@ -223,28 +187,10 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
     setLoadingSchemas(true)
     try {
-      const sdk = window.panelxSdk
-      const params = {
-        panelCode: 'IML_00009',
-        buttonName: '获取sql结果',
-        buttonParam: {
-          dstype: selectedSource.type || 'postgres',
-          name: '模式sql',
-          dsname: selectedSource.name,
-          regexMap: {}
-        }
-      }
-
-      const result = await sdk.api.callButton(params)
-      console.log('[TableManagement] 获取schema列表:', result)
-
-      if (result && result.data && result.data.right) {
-        // right 是二维数组，每个元素是 [schema_name]
-        const schemaList = result.data.right.map(row => row[0])
-        setSchemas(schemaList)
-        if (schemaList.length > 0 && !schemaList.includes(selectedSchema)) {
-          setSelectedSchema(schemaList[0])
-        }
+      const schemaList = await querySchemaList(selectedSource)
+      setSchemas(schemaList)
+      if (schemaList.length > 0 && !schemaList.includes(selectedSchema)) {
+        setSelectedSchema(schemaList[0])
       }
     } catch (error) {
       console.error('[TableManagement] 获取schema列表失败:', error)
@@ -259,30 +205,8 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
     setLoadingDbTables(true)
     try {
-      const sdk = window.panelxSdk
-      const params = {
-        panelCode: 'IML_00009',
-        buttonName: '获取sql结果',
-        buttonParam: {
-          dstype: selectedSource.type || 'postgres',
-          name: '表sql',
-          dsname: selectedSource.name,
-          regexMap: { '$scheme_name$': schemaName }
-        }
-      }
-
-      const result = await sdk.api.callButton(params)
-      console.log('[TableManagement] 获取表列表:', result)
-
-      if (result && result.data && result.data.right) {
-        // right 是二维数组，每个元素是 [table_name]
-        const tableList = result.data.right.map(row => ({
-          name: row[0],
-          comment: '',
-          schema: schemaName
-        }))
-        setTablesFromDb(tableList)
-      }
+      const tableList = await queryDbTableList(selectedSource, schemaName)
+      setTablesFromDb(tableList)
     } catch (error) {
       console.error('[TableManagement] 获取表列表失败:', error)
     } finally {
@@ -354,58 +278,8 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     // 调用SDK获取表结构
     if (isSdkAvailable()) {
       try {
-        const sdk = window.panelxSdk
-        const params = {
-          panelCode: 'OctoCM_BDYTH_IML_00009',
-          buttonName: '获取sql结果',
-          buttonParam: {
-            dstype: selectedSource.type || 'postgresql',
-            name: '表结构sql',
-            dsname: selectedSource.name,
-            regexMap: {
-              '$table_name$': tableName,
-              '$schema_name$': selectedSchema
-            }
-          }
-        }
-
-        const result = await sdk.api.callButton(params)
-        console.log('[TableManagement] 获取表结构:', result)
-
-        if (result && result.data && result.data.left && result.data.right) {
-          // 根据 left 中的字段名建立索引映射
-          const fieldIndexMap = {}
-          result.data.left.forEach((field, index) => {
-            fieldIndexMap[field.name] = index
-          })
-
-          console.log('[TableManagement] 字段索引映射:', fieldIndexMap)
-
-          // 解析表结构数据
-          const fields = result.data.right.map(row => {
-            // 根据 left 中的字段名获取对应的值
-            const fieldName = fieldIndexMap['字段名'] !== undefined ? row[fieldIndexMap['字段名']] : ''
-            const type = fieldIndexMap['类型'] !== undefined ? row[fieldIndexMap['类型']] : ''
-            const length = fieldIndexMap['长度'] !== undefined ? row[fieldIndexMap['长度']] : ''
-            const precision = fieldIndexMap['精度'] !== undefined ? row[fieldIndexMap['精度']] : ''
-            const comment = fieldIndexMap['字段中文名'] !== undefined ? row[fieldIndexMap['字段中文名']] : ''
-
-            const normalizedType = normalizeDbType(type)
-
-            return {
-              name: fieldName || '',
-              type: normalizedType,
-              // 如果值为 -1 或 '-1'，则设为空字符串
-              length: (length === -1 || length === '-1') ? '' : (length || ''),
-              precision: (precision === -1 || precision === '-1') ? '' : (precision || ''),
-              comment: comment || '',
-              fieldType: '属性',
-              category: '',
-              dateFormat: normalizedType === '日期' ? 'yyyyMMdd' : '',
-              selected: true
-            }
-          })
-
+        const fields = await queryTableStructure(selectedSource, selectedSchema, tableName)
+        if (fields) {
           setEditingTable(prev => ({
             ...prev,
             fields: fields.map(withFieldDefaults)

@@ -30,14 +30,14 @@ const getConfig = () => {
   return { ...defaultConfig, ...globalConfig };
 };
 
-const normalizeFieldCategory = (fieldType) => {
+export const normalizeFieldCategory = (fieldType) => {
   if (fieldType === '维度' || fieldType === '度量' || fieldType === '属性') {
     return fieldType;
   }
   return '属性';
 };
 
-const normalizeDbType = (dbType) => {
+export const normalizeDbType = (dbType) => {
   const raw = String(dbType || '').toUpperCase();
   const base = raw.replace(/\(.*/, '');
 
@@ -335,42 +335,168 @@ export const queryTableDetail = async (id) => {
 /**
  * 查询数据字典类别
  */
-export const queryDictionaryCategories = async (pageNo = 1, pageSize = 200) => {
+export const queryDictionaryCategories = async () => {
   const sdk = getSdk();
   if (!sdk) {
     console.warn('[SDK] SDK 不可用，无法查询数据字典类别');
     return [];
   }
 
-  const config = getConfig();
-  if (!config.dictionaryCategoryPanelCode) {
-    console.warn('[SDK] 未配置 dictionaryCategoryPanelCode，无法查询数据字典类别');
+  try {
+    const params = {
+      panelCode: 'IML_00011',
+      buttonName: '查询码值类型',
+      buttonParam: {
+        configName: '数据字典类别表'
+      }
+    };
+
+    const result = await sdk.api.callButton(params);
+    console.log('[SDK] 查询数据字典类别结果:', result);
+
+    if (result && result.data && result.data.right) {
+      // right 是二维数组，每个元素是 [type_id, type_name]
+      const list = result.data.right.map(row => ({
+        value: row[0] ? String(row[0]) : '',
+        label: row[1] ? String(row[1]) : row[0]
+      })).filter(item => item.value);
+
+      return list;
+    }
+    return [];
+  } catch (error) {
+    console.error('[SDK] 查询数据字典类别失败:', error);
     return [];
   }
+};
+
+/**
+ * 获取模式名列表 (Source)
+ */
+export const querySchemaList = async (dataSource) => {
+  const sdk = getSdk();
+  if (!sdk) return [];
 
   try {
     const params = {
-      panelCode: config.dictionaryCategoryPanelCode,
-      condition: {},
-      pageNo,
-      pageSize
+      panelCode: 'IML_00009',
+      buttonName: '获取sql结果',
+      buttonParam: {
+        dstype: dataSource.type || 'postgres',
+        name: '模式sql',
+        dsname: dataSource.name,
+        regexMap: {}
+      }
     };
 
-    const result = await sdk.api.queryFormDataList(params);
-    console.log('[SDK] 查询数据字典类别结果:', result);
+    const result = await sdk.api.callButton(params);
+    console.log('[SDK] 获取schema列表:', result);
 
-    const list = (result?.data?.list || []).map(item => {
-      const value = item['类别编码'] || item['编码'] || item.code || item.id || item['编号'] || '';
-      const label = item['类别名称'] || item['名称'] || item.name || item.label || value;
-      return {
-        value: value ? String(value) : '',
-        label: label ? String(label) : ''
-      };
-    }).filter(item => item.value);
-
-    return list;
+    if (result && result.data && result.data.right) {
+      return result.data.right.map(row => row[0]);
+    }
+    return [];
   } catch (error) {
-    console.error('[SDK] 查询数据字典类别失败:', error);
+    console.error('[SDK] 获取schema列表失败:', error);
+    return [];
+  }
+};
+
+/**
+ * 获取数据库表列表 (Source)
+ */
+export const queryDbTableList = async (dataSource, schemaName) => {
+  const sdk = getSdk();
+  if (!sdk) return [];
+
+  try {
+    const params = {
+      panelCode: 'IML_00009',
+      buttonName: '获取sql结果',
+      buttonParam: {
+        dstype: dataSource.type || 'postgres',
+        name: '表sql',
+        dsname: dataSource.name,
+        regexMap: { '$scheme_name$': schemaName }
+      }
+    };
+
+    const result = await sdk.api.callButton(params);
+    console.log('[SDK] 获取表列表:', result);
+
+    if (result && result.data && result.data.right) {
+      return result.data.right.map(row => ({
+        name: row[0],
+        comment: '',
+        schema: schemaName
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('[SDK] 获取表列表失败:', error);
+    return [];
+  }
+};
+
+/**
+ * 获取表结构 (Source)
+ */
+export const queryTableStructure = async (dataSource, schemaName, tableName) => {
+  const sdk = getSdk();
+  if (!sdk) return null;
+
+  try {
+    const params = {
+      panelCode: 'OctoCM_BDYTH_IML_00009',
+      buttonName: '获取sql结果',
+      buttonParam: {
+        dstype: dataSource.type || 'postgresql',
+        name: '表结构sql',
+        dsname: dataSource.name,
+        regexMap: {
+          '$table_name$': tableName,
+          '$schema_name$': schemaName
+        }
+      }
+    };
+
+    const result = await sdk.api.callButton(params);
+    console.log('[SDK] 获取表结构:', result);
+
+    if (result && result.data && result.data.left && result.data.right) {
+      const fieldIndexMap = {};
+      result.data.left.forEach((field, index) => {
+        fieldIndexMap[field.name] = index;
+      });
+
+      const fields = result.data.right.map(row => {
+        const fieldName = fieldIndexMap['字段名'] !== undefined ? row[fieldIndexMap['字段名']] : '';
+        const type = fieldIndexMap['类型'] !== undefined ? row[fieldIndexMap['类型']] : '';
+        const length = fieldIndexMap['长度'] !== undefined ? row[fieldIndexMap['长度']] : '';
+        const precision = fieldIndexMap['精度'] !== undefined ? row[fieldIndexMap['精度']] : '';
+        const comment = fieldIndexMap['字段中文名'] !== undefined ? row[fieldIndexMap['字段中文名']] : '';
+
+        const normalizedType = normalizeDbType(type);
+
+        return {
+          name: fieldName || '',
+          type: normalizedType,
+          length: (length === -1 || length === '-1') ? '' : (length || ''),
+          precision: (precision === -1 || precision === '-1') ? '' : (precision || ''),
+          comment: comment || '',
+          fieldType: '属性',
+          category: '',
+          dateFormat: normalizedType === '日期' ? 'yyyyMMdd' : '',
+          selected: true,
+          primaryKey: false,
+          sortDirection: 'asc'
+        };
+      });
+      return fields;
+    }
+    return [];
+  } catch (error) {
+    console.error('[SDK] 获取表结构失败:', error);
     throw error;
   }
 };
@@ -485,5 +611,10 @@ export default {
   queryTableList,
   saveTable,
   deleteTable,
-  queryDictionaryCategories
+  queryDictionaryCategories,
+  querySchemaList,
+  queryDbTableList,
+  queryTableStructure,
+  normalizeDbType,
+  normalizeFieldCategory
 };
