@@ -4,6 +4,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { DataSourceList } from '@/components/DataSourceList'
 import { TableManagement } from '@/components/TableManagement'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Toaster } from '@/components/ui/toaster'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import './App.css'
 
@@ -133,6 +134,7 @@ function App() {
           )}
         </section>
       </main>
+      <Toaster />
     </div>
   )
 }

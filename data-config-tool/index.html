@@ -13,14 +13,16 @@
 
   <script type="module">
 
+    import { PANEL_CODES } from '/src/lib/sdk.js';
+
     // SDK 配置
     window.SDK_CONFIG = {
       devDefaultBaseUrl: 'https://demo.kwaidoo.com/zbyth/process/',
       busDomainCode: 'OctoCM_BDYTH',
       // 数据源管理 panelCode
-      dataSourcePanelCode: 'OctoCM_BDYTH_IML_00005',
+      dataSourcePanelCode: PANEL_CODES.DATA_SOURCE,
       // 表管理 panelCode
-      tablePanelCode: 'OctoCM_BDYTH_IML_00003'
+      tablePanelCode: PANEL_CODES.TABLE
     };
 
     // 等待 PanelXSdk 类加载完成后再初始化

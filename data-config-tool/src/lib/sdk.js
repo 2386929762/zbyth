@@ -18,10 +18,16 @@ const TYPE_MAP = {
   数值: ['NUMBER', 'NUMERIC', 'DECIMAL', 'BIGINT', 'INT', 'INTEGER', 'SMALLINT', 'TINYINT', 'DOUBLE', 'FLOAT', 'REAL', 'MONEY']
 };
 
+export const PANEL_CODES = {
+  DATA_SOURCE: 'IML_00005',
+  TABLE: 'IML_00003',
+  SQL_TOOL: 'IML_00009',
+  DICTIONARY: 'IML_00011'
+};
+
 const defaultConfig = {
-  dataSourcePanelCode: 'OctoCM_BDYTH_IML_00005',
-  tablePanelCode: 'OctoCM_BDYTH_IML_00003',
-  dictionaryCategoryPanelCode: null
+  dataSourcePanelCode: PANEL_CODES.DATA_SOURCE,
+  tablePanelCode: PANEL_CODES.TABLE,
 };
 
 // 获取配置
@@ -52,8 +58,6 @@ export const isSdkAvailable = () => {
 };
 
 // ==================== 数据源管理 API ====================
-// panelCode: OctoCM_BDYTH_IML_00005
-// 属性：数据源名称, 数据库类型, 主机地址, 端口, 数据库名, 用户名, 密码
 
 /**
  * 查询数据源列表
@@ -183,9 +187,6 @@ export const deleteDataSource = async (id) => {
 };
 
 // ==================== 表管理 API ====================
-// panelCode: OctoCM_BDYTH_IML_00003
-// 属性：模式名, 表名, 中文名, 描述, 数据源编号(dsCode), 表结构
-// 表结构属性：字段名, 类型, 长度, 精度, 字段中文名, 字段分类
 
 /**
  * 查询表列表
@@ -289,6 +290,46 @@ const parseTableStructure = (tableStructure) => {
 };
 
 /**
+ * 解析 SQL 执行结果为字段列表
+ * 用于 queryTableStructure 和 getSqlStruct
+ */
+const parseSqlResultToFields = (result) => {
+  if (result && result.data && result.data.left && result.data.right) {
+    const fieldIndexMap = {};
+    result.data.left.forEach((col, index) => {
+      // 兼容对象({name: '...'})和字符串两种格式
+      const colName = (typeof col === 'object' && col?.name) ? col.name : col;
+      fieldIndexMap[colName] = index;
+    });
+
+    return result.data.right.map(row => {
+      const fieldName = fieldIndexMap['字段名'] !== undefined ? row[fieldIndexMap['字段名']] : '';
+      const type = fieldIndexMap['类型'] !== undefined ? row[fieldIndexMap['类型']] : '';
+      const length = fieldIndexMap['长度'] !== undefined ? row[fieldIndexMap['长度']] : '';
+      const precision = fieldIndexMap['精度'] !== undefined ? row[fieldIndexMap['精度']] : '';
+      const comment = fieldIndexMap['字段中文名'] !== undefined ? row[fieldIndexMap['字段中文名']] : '';
+
+      const normalizedType = normalizeDbType(type);
+
+      return {
+        name: fieldName || '',
+        type: normalizedType,
+        length: (length === -1 || length === '-1') ? '' : (length || ''),
+        precision: (precision === -1 || precision === '-1') ? '' : (precision || ''),
+        comment: comment || '',
+        fieldType: '属性',
+        category: '',
+        dateFormat: normalizedType === '日期' ? 'yyyyMMdd' : '',
+        selected: true,
+        primaryKey: false,
+        sortDirection: 'asc'
+      };
+    });
+  }
+  return [];
+};
+
+/**
  * 查询单个表详情
  * @param {string} id - 表编号
  */
@@ -344,7 +385,7 @@ export const queryDictionaryCategories = async () => {
 
   try {
     const params = {
-      panelCode: 'IML_00011',
+      panelCode: PANEL_CODES.DICTIONARY,
       buttonName: '查询码值类型',
       buttonParam: {
         configName: '数据字典类别表'
@@ -379,7 +420,7 @@ export const querySchemaList = async (dataSource) => {
 
   try {
     const params = {
-      panelCode: 'IML_00009',
+      panelCode: PANEL_CODES.SQL_TOOL,
       buttonName: '获取sql结果',
       buttonParam: {
         dstype: dataSource.type || 'postgres',
@@ -411,7 +452,7 @@ export const queryDbTableList = async (dataSource, schemaName) => {
 
   try {
     const params = {
-      panelCode: 'IML_00009',
+      panelCode: PANEL_CODES.SQL_TOOL,
       buttonName: '获取sql结果',
       buttonParam: {
         dstype: dataSource.type || 'postgres',
@@ -447,7 +488,7 @@ export const queryTableStructure = async (dataSource, schemaName, tableName) => 
 
   try {
     const params = {
-      panelCode: 'OctoCM_BDYTH_IML_00009',
+      panelCode: PANEL_CODES.SQL_TOOL,
       buttonName: '获取sql结果',
       buttonParam: {
         dstype: dataSource.type || 'postgresql',
@@ -464,35 +505,7 @@ export const queryTableStructure = async (dataSource, schemaName, tableName) => 
     console.log('[SDK] 获取表结构:', result);
 
     if (result && result.data && result.data.left && result.data.right) {
-      const fieldIndexMap = {};
-      result.data.left.forEach((field, index) => {
-        fieldIndexMap[field.name] = index;
-      });
-
-      const fields = result.data.right.map(row => {
-        const fieldName = fieldIndexMap['字段名'] !== undefined ? row[fieldIndexMap['字段名']] : '';
-        const type = fieldIndexMap['类型'] !== undefined ? row[fieldIndexMap['类型']] : '';
-        const length = fieldIndexMap['长度'] !== undefined ? row[fieldIndexMap['长度']] : '';
-        const precision = fieldIndexMap['精度'] !== undefined ? row[fieldIndexMap['精度']] : '';
-        const comment = fieldIndexMap['字段中文名'] !== undefined ? row[fieldIndexMap['字段中文名']] : '';
-
-        const normalizedType = normalizeDbType(type);
-
-        return {
-          name: fieldName || '',
-          type: normalizedType,
-          length: (length === -1 || length === '-1') ? '' : (length || ''),
-          precision: (precision === -1 || precision === '-1') ? '' : (precision || ''),
-          comment: comment || '',
-          fieldType: '属性',
-          category: '',
-          dateFormat: normalizedType === '日期' ? 'yyyyMMdd' : '',
-          selected: true,
-          primaryKey: false,
-          sortDirection: 'asc'
-        };
-      });
-      return fields;
+      return parseSqlResultToFields(result);
     }
     return [];
   } catch (error) {
@@ -603,6 +616,41 @@ export const deleteTable = async (id) => {
   }
 };
 
+/**
+ * 获取 SQL 结构
+ * @param {string} dstype - 数据库类型
+ * @param {string} dsname - 数据源名称
+ * @param {string} sql - SQL 语句
+ */
+export const getSqlStruct = async (dstype, dsname, sql) => {
+  const sdk = getSdk();
+  if (!sdk) return null;
+
+  try {
+    const params = {
+      panelCode: PANEL_CODES.TABLE,
+      buttonName: 'getSqlStruct',
+      buttonParam: {
+        dstype,
+        dsname,
+        sql
+      }
+    };
+
+    console.log('[SDK] 获取SQL结构参数:', params);
+    const result = await sdk.api.callButton(params);
+    console.log('[SDK] 获取SQL结构结果:', result);
+
+    if (result && result.data && result.data.left && result.data.right) {
+      return parseSqlResultToFields(result);
+    }
+    return [];
+  } catch (error) {
+    console.error('[SDK] 获取SQL结构失败:', error);
+    throw error;
+  }
+};
+
 export default {
   isSdkAvailable,
   queryDataSourceList,
@@ -615,6 +663,7 @@ export default {
   querySchemaList,
   queryDbTableList,
   queryTableStructure,
+  getSqlStruct,
   normalizeDbType,
   normalizeFieldCategory
 };

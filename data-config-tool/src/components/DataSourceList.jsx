@@ -25,6 +25,7 @@ import {
   saveDataSource,
   deleteDataSource
 } from '@/lib/sdk'
+import { useToast } from "@/hooks/use-toast"
 
 const DATABASE_TYPES = [
   { value: 'mysql', label: 'MySQL' },
@@ -35,6 +36,7 @@ const DATABASE_TYPES = [
 ]
 
 export function DataSourceList({ dataSources, setDataSources, selectedSource, onSelectSource }) {
+  const { toast } = useToast()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingSource, setEditingSource] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -68,7 +70,11 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
       console.log('[DataSourceList] 从 SDK 加载数据源:', result.list)
     } catch (error) {
       console.error('[DataSourceList] 加载数据源失败:', error)
-      alert('加载数据源失败: ' + error.message)
+      toast({
+        variant: "destructive",
+        title: "加载失败",
+        description: error.message
+      })
     } finally {
       setLoading(false)
     }
@@ -120,19 +126,19 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
   const handleSave = async () => {
     // 空值校验
     if (!formData.name?.trim()) {
-      alert('请输入数据源名称')
+      toast({ variant: "destructive", title: "校验失败", description: "请输入数据源名称" })
       return
     }
     if (!formData.type) {
-      alert('请选择数据库类型')
+      toast({ variant: "destructive", title: "校验失败", description: "请选择数据库类型" })
       return
     }
     if (!formData.url?.trim()) {
-      alert('请输入数据源url')
+      toast({ variant: "destructive", title: "校验失败", description: "请输入数据源url" })
       return
     }
     if (!formData.username?.trim()) {
-      alert('请输入用户名')
+      toast({ variant: "destructive", title: "校验失败", description: "请输入用户名" })
       return
     }
 
@@ -159,6 +165,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
         // 重新加载列表，刷新节点信息
         await loadDataSources()
         console.log('[DataSourceList] 数据源保存成功，已刷新列表')
+        toast({ title: "保存成功", description: "数据源已保存" })
       } else {
         // SDK 不可用时使用本地状态
         if (editingSource) {
@@ -176,7 +183,11 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
       }, 200)
     } catch (error) {
       console.error('[DataSourceList] 保存失败:', error)
-      alert('保存失败: ' + error.message)
+      toast({
+        variant: "destructive",
+        title: "保存失败",
+        description: error.message
+      })
     } finally {
       setSaving(false)
     }
@@ -188,12 +199,17 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
         await deleteDataSource(id)
         // 重新加载列表
         await loadDataSources()
+        toast({ title: "删除成功", description: "数据源已删除" })
       } else {
         setDataSources(dataSources.filter(ds => ds.id !== id))
       }
     } catch (error) {
       console.error('[DataSourceList] 删除失败:', error)
-      alert('删除失败: ' + error.message)
+      toast({
+        variant: "destructive",
+        title: "删除失败",
+        description: error.message
+      })
     }
   }
 

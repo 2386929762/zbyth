@@ -40,9 +40,11 @@ import {
   querySchemaList,
   queryDbTableList,
   queryTableStructure,
+  getSqlStruct,
   normalizeDbType,
   normalizeFieldCategory
 } from '@/lib/sdk'
+import { useToast } from "@/hooks/use-toast"
 
 
 
@@ -71,6 +73,7 @@ const withFieldDefaults = (field = {}) => {
 }
 
 export function TableManagement({ selectedSource, tables, setTables, dataSources }) {
+  const { toast } = useToast()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -132,7 +135,11 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
       }
     } catch (error) {
       console.error('[TableManagement] 加载表列表失败:', error)
-      alert('加载表列表失败: ' + error.message)
+      toast({
+        variant: "destructive",
+        title: "加载失败",
+        description: error.message
+      })
     } finally {
       setLoading(false)
     }
@@ -216,7 +223,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
   const handleOpenAddDialog = async () => {
     if (!selectedSource) {
-      alert('请先选择数据源')
+      toast({ variant: "destructive", title: "提示", description: "请先选择数据源" })
       return
     }
     // 重置状态
@@ -287,7 +294,11 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         }
       } catch (error) {
         console.error('[TableManagement] 获取表结构失败:', error)
-        alert('获取表结构失败: ' + error.message)
+        toast({
+          variant: "destructive",
+          title: "获取表结构失败",
+          description: error.message
+        })
       } finally {
         setLoadingDetail(false)
       }
@@ -453,7 +464,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     }
 
     if (!selectedTableName) {
-      alert('请选择一个表')
+      toast({ variant: "destructive", title: "提示", description: "请选择一个表" })
       return
     }
 
@@ -518,12 +529,17 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
           await deleteTable(tableId)
           // 重新加载列表
           await loadTables()
+          toast({ title: "删除成功", description: "表已删除" })
         } else {
           setTables(tables.filter(t => t.id !== tableId))
         }
       } catch (error) {
         console.error('[TableManagement] 删除失败:', error)
-        alert('删除失败: ' + error.message)
+        toast({
+          variant: "destructive",
+          title: "删除失败",
+          description: error.message
+        })
       }
     }
   }
@@ -534,21 +550,22 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     const selectedFields = editingTable.fields
       .map(withFieldDefaults)
     if (selectedFields.length === 0) {
-      alert('请至少添加一个字段')
+      toast({ variant: "destructive", title: "校验失败", description: "请至少添加一个字段" })
       return
     }
 
     // 校验必须选择主键
     const hasPrimaryKey = selectedFields.some(f => f.primaryKey)
     if (!hasPrimaryKey) {
-      alert('请选择一个字段作为主键')
+      toast({ variant: "destructive", title: "校验失败", description: "请选择一个字段作为主键" })
       return
     }
 
     // 校验字段名不能为空
+    // 校验字段名不能为空
     const emptyFieldName = selectedFields.find(f => !f.name || !f.name.trim())
     if (emptyFieldName) {
-      alert('存在字段名为空的字段，请填写完整后再保存')
+      toast({ variant: "destructive", title: "校验失败", description: "存在字段名为空的字段，请填写完整后再保存" })
       return
     }
 
@@ -578,6 +595,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         await saveTable(tableData)
         // 重新加载列表
         await loadTables()
+        toast({ title: "保存成功", description: "表结构已保存" })
       } else {
         // SDK 不可用时使用本地状态
         if (editingTable.id) {
@@ -598,7 +616,11 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
       }, 200)
     } catch (error) {
       console.error('[TableManagement] 保存失败:', error)
-      alert('保存失败: ' + error.message)
+      toast({
+        variant: "destructive",
+        title: "保存失败",
+        description: error.message
+      })
     } finally {
       setSaving(false)
     }
@@ -985,14 +1007,72 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                               <Plus className="h-4 w-4 mr-1" />
                               添加字段
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                if (confirm('确定要清空所有字段吗？')) {
+                                  setEditingTable({
+                                    ...editingTable,
+                                    fields: []
+                                  })
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              清空列表
+                            </Button>
                           </>
                         ) : (
                           <Button
                             size="sm"
-                            onClick={() => {
-                              console.log('运行 SQL:', sqlContent)
-                              // TODO: Implement SQL execution
-                              alert('SQL 运行功能开发中...')
+
+                            onClick={async () => {
+                              if (!sqlContent.trim()) {
+                                toast({ variant: "destructive", title: "提示", description: "请输入 SQL 语句" })
+                                return
+                              }
+
+                              if (!isSdkAvailable()) {
+                                toast({ variant: "destructive", title: "错误", description: "SDK 不可用" })
+                                return
+                              }
+
+                              try {
+                                const fields = await getSqlStruct(
+                                  selectedSource.type || 'postgresql',
+                                  selectedSource.name,
+                                  sqlContent
+                                )
+
+                                if (fields) {
+                                  const currentFields = editingTable.fields || []
+                                  const currentFieldNames = new Set(currentFields.map(f => f.name))
+
+                                  // 仅添加不存在的新字段
+                                  const newUniqueFields = fields
+                                    .filter(f => !currentFieldNames.has(f.name))
+                                    .map(withFieldDefaults)
+
+                                  if (newUniqueFields.length === 0) {
+                                    toast({ title: "提示", description: "没有检测到新增字段" })
+                                  } else {
+                                    toast({ title: "解析成功", description: `已添加 ${newUniqueFields.length} 个新字段` })
+                                    setEditingTable(prev => ({
+                                      ...prev,
+                                      fields: [...(prev.fields || []), ...newUniqueFields]
+                                    }))
+                                  }
+                                  setActiveTab('structure')
+                                }
+                              } catch (error) {
+                                console.error('[TableManagement] SQL 运行失败:', error)
+                                toast({
+                                  variant: "destructive",
+                                  title: "运行失败",
+                                  description: error.message
+                                })
+                              }
                             }}
                           >
                             <Play className="h-4 w-4 mr-1" />
