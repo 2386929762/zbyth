@@ -488,6 +488,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
   const handleOpenDetailDialog = async (table, initialTab = 'structure') => {
     // 先设置基本信息并打开对话框
     setActiveTab(initialTab) // 设置初始 Tab
+    setSqlContent('')
     setEditingTable({
       ...table,
       fields: (table.fields || []).map(withFieldDefaults)
