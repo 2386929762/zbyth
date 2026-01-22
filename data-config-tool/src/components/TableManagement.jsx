@@ -1,3 +1,4 @@
+import * as Icons from 'lucide-react'
 import React, { useState, useEffect, useCallback } from 'react'
 import { Plus, Settings, Search, ChevronRight, Trash2, RefreshCw, ArrowUp, ArrowDown, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select,
   SelectContent,
@@ -570,10 +572,16 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     }
 
     // 校验字段名不能为空
-    // 校验字段名不能为空
     const emptyFieldName = selectedFields.find(f => !f.name || !f.name.trim())
     if (emptyFieldName) {
       toast({ variant: "destructive", title: "校验失败", description: "存在字段名为空的字段，请填写完整后再保存" })
+      return
+    }
+
+    // 校验维度字段必须选择类别
+    const invalidDimensionField = selectedFields.find(f => f.fieldType === '维度' && !f.category)
+    if (invalidDimensionField) {
+      toast({ variant: "destructive", title: "校验失败", description: `字段 "${invalidDimensionField.name}" 分类为“维度”，请选择类别` })
       return
     }
 
@@ -670,10 +678,12 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
           </div>
           {/* 刷新按钮 */}
           <Button variant="outline" size="sm" onClick={loadTables} disabled={loading}>
+            <Icons.RotateCw className="w-4 h-4 mr-2" />
             刷新
           </Button>
           {/* 添加按钮 */}
           <Button onClick={handleOpenAddDialog} size="sm">
+            <Icons.Plus className="w-4 h-4 mr-2" />
             新增
           </Button>
         </div>
@@ -781,30 +791,20 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                   </Select>
                 </div>
 
-                <div className="flex items-center gap-4 pl-[4rem]">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="tm_mode"
-                      value="table"
-                      checked={addTableMode === 'table'}
-                      onChange={e => setAddTableMode(e.target.value)}
-                      className="accent-primary h-4 w-4"
-                    />
-                    <span className="text-sm">源表</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="tm_mode"
-                      value="sql"
-                      checked={addTableMode === 'sql'}
-                      onChange={e => setAddTableMode(e.target.value)}
-                      className="accent-primary h-4 w-4"
-                    />
-                    <span className="text-sm">SQL</span>
-                  </label>
-                </div>
+                <RadioGroup
+                  value={addTableMode}
+                  onValueChange={setAddTableMode}
+                  className="flex items-center gap-4 pl-[4rem]"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="table" id="r-table" />
+                    <Label htmlFor="r-table">源表</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="sql" id="r-sql" />
+                    <Label htmlFor="r-sql">SQL</Label>
+                  </div>
+                </RadioGroup>
               </div>
 
               {/* 搜索框 - 仅在 table 模式下显示 */}

@@ -364,17 +364,14 @@ export const queryDictionaryCategories = async () => {
     const params = {
       panelCode: PANEL_CODES.DICTIONARY,
       buttonName: '查询码值类型',
-      buttonParam: {
-        configName: '数据字典类别表'
-      }
     };
 
     const result = await sdk.api.callButton(params);
-    console.log('[SDK] 查询数据字典类别结果:', result);
+    // console.log('[SDK] 查询数据字典类别结果:', result);
 
-    if (result && result.data && result.data.right) {
+    if (result && result.data) {
       // right 是二维数组，每个元素是 [type_id, type_name]
-      const list = result.data.right.map(row => ({
+      const list = result.data.map(row => ({
         value: row[0] ? String(row[0]) : '',
         label: row[1] ? String(row[1]) : row[0]
       })).filter(item => item.value);
