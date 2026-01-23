@@ -1227,6 +1227,9 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                                           加载中...
                                         </SelectItem>
                                       )}
+                                      {!loadingCategories && (
+                                        <SelectItem value="$ORG$">机构</SelectItem>
+                                      )}
                                       {!loadingCategories && categoryOptions.length === 0 && (
                                         <SelectItem value="__none" disabled>
                                           暂无类别数据
