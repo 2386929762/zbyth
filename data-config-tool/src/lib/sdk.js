@@ -330,6 +330,25 @@ export const queryTableDetail = async (id) => {
 
     if (result && result.data && result.data.list && result.data.list.length > 0) {
       const item = result.data.list[0];
+
+      let finalSql = item['querySql'] || '';
+      let finalParamMap = {};
+
+      // 尝试解析 querySql，兼容旧格式（纯字符串）和新格式（JSON: {sql, paramMap}）
+      try {
+        if (finalSql && typeof finalSql === 'string') {
+          const parsed = JSON.parse(finalSql);
+          // 检查是否符合新格式结构
+          if (parsed && typeof parsed === 'object' && 'sql' in parsed) {
+            finalSql = parsed.sql || '';
+            finalParamMap = parsed.paramMap || {};
+          }
+        }
+      } catch (e) {
+        // 解析失败，说明是旧格式的纯 SQL 字符串，保持原值
+        // console.log('Legacy SQL format detected');
+      }
+
       // 转换数据格式：后端字段 -> 前端字段
       return {
         id: item['编号'],
@@ -339,7 +358,8 @@ export const queryTableDetail = async (id) => {
         description: item['描述'] || '',
         dsCode: item['dsCode'] || '',
         type: item['tableType'] || 'table',
-        querySql: item['querySql'] || '',
+        querySql: finalSql,
+        paramMap: finalParamMap,
         fields: parseTableStructure(item['表结构json'])
       };
     }
@@ -526,6 +546,12 @@ export const saveTable = async (table) => {
     const tableStructureArray = buildTableStructure(table.fields);
     console.log('[SDK] 表结构数据:', JSON.stringify(tableStructureArray, null, 2));
 
+    // 构建 querySql 的 JSON 对象
+    const querySqlObj = {
+      sql: table.querySql || '',
+      paramMap: table.paramMap || {}
+    };
+
     // 构建 formData，前端字段 -> 后端字段
     const formData = {
       '模式名': table.schema,
@@ -534,7 +560,7 @@ export const saveTable = async (table) => {
       '描述': table.description,
       'dsCode': table.dsCode || '',
       'tableType': table.type || 'table',
-      'querySql': table.querySql || '',
+      'querySql': JSON.stringify(querySqlObj),
       '表结构json': JSON.stringify(tableStructureArray)
     };
 

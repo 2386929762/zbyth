@@ -109,7 +109,14 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
   const [loadingCategories, setLoadingCategories] = useState(false)
   const [activeTab, setActiveTab] = useState('structure')
   const [sqlContent, setSqlContent] = useState('')
+  const [finalSqlContent, setFinalSqlContent] = useState('') // 最终执行的 SQL
   const [addTableMode, setAddTableMode] = useState('table') // 'table' | 'sql'
+
+  // 参数提取相关状态
+  const [isParamDialogOpen, setIsParamDialogOpen] = useState(false)
+  const [detectedParams, setDetectedParams] = useState([])
+  const [paramValues, setParamValues] = useState({})
+  const [cachedParamValues, setCachedParamValues] = useState({}) // 缓存的参数值
 
   // 用 useRef 记录当前数据源ID，防止重复加载
   const lastLoadedSourceIdRef = React.useRef(null)
@@ -447,6 +454,103 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     }
   }
 
+  // SQL 执行逻辑
+  const executeSql = async (sqlToExecute) => {
+    if (!sqlToExecute.trim()) {
+      toast({ variant: "destructive", title: "提示", description: "SQL 内容为空" })
+      return
+    }
+
+    if (!isSdkAvailable()) {
+      toast({ variant: "destructive", title: "错误", description: "SDK 不可用" })
+      return
+    }
+
+    try {
+      const fields = await getSqlStruct(
+        selectedSource.type || 'postgresql',
+        selectedSource.name,
+        sqlToExecute
+      )
+
+      if (fields) {
+        const currentFields = editingTable.fields || []
+        const currentFieldNames = new Set(currentFields.map(f => f.name))
+
+        // 仅添加不存在的新字段
+        const newUniqueFields = fields
+          .filter(f => !currentFieldNames.has(f.name))
+          .map(withFieldDefaults)
+
+        if (newUniqueFields.length === 0) {
+          toast({ title: "提示", description: "没有检测到新增字段" })
+        } else {
+          toast({ title: "解析成功", description: `已添加 ${newUniqueFields.length} 个新字段` })
+          setEditingTable(prev => ({
+            ...prev,
+            fields: [...(prev.fields || []), ...newUniqueFields]
+          }))
+        }
+        setActiveTab('structure')
+      }
+    } catch (error) {
+      console.error('[TableManagement] SQL 运行失败:', error)
+      toast({
+        variant: "destructive",
+        title: "运行失败",
+        description: error.message
+      })
+    }
+  }
+
+  // 点击运行处理
+  const handleRunClick = async () => {
+    if (!sqlContent.trim()) {
+      toast({ variant: "destructive", title: "提示", description: "请输入 SQL 语句" })
+      return
+    }
+
+    // 提取参数 $Param$
+    const paramRegex = /\$([a-zA-Z0-9_\u4e00-\u9fa5]+)\$/g
+    const matches = Array.from(sqlContent.matchAll(paramRegex))
+
+    if (matches.length > 0) {
+      const uniqueParams = [...new Set(matches.map(m => m[1]))]
+      const initialValues = {}
+      uniqueParams.forEach(p => {
+        // 优先使用缓存值，否则默认为 "0"
+        initialValues[p] = cachedParamValues[p] !== undefined ? cachedParamValues[p] : "0"
+      })
+
+      setDetectedParams(uniqueParams)
+      setParamValues(initialValues)
+      setIsParamDialogOpen(true)
+    } else {
+      setFinalSqlContent(sqlContent)
+      executeSql(sqlContent)
+    }
+  }
+
+  // 确认参数并执行
+  const handleConfirmParams = () => {
+    let finalSql = sqlContent
+    detectedParams.forEach(param => {
+      const val = paramValues[param] !== undefined ? paramValues[param] : "0"
+      finalSql = finalSql.replaceAll(`$${param}$`, val)
+    })
+
+    setFinalSqlContent(finalSql)
+
+    // 更新缓存
+    setCachedParamValues(prev => ({
+      ...prev,
+      ...paramValues
+    }))
+
+    executeSql(finalSql)
+    setIsParamDialogOpen(false)
+  }
+
   // 确定添加表
   const handleConfirmAddTable = () => {
     // SQL 模式直接进入配置
@@ -491,6 +595,8 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     // 先设置基本信息并打开对话框
     setActiveTab(initialTab) // 设置初始 Tab
     setSqlContent('')
+    setFinalSqlContent('') // 重置最终 SQL
+    setCachedParamValues(table.paramMap || {}) // 设置缓存的参数值
     setEditingTable({
       ...table,
       fields: (table.fields || []).map(withFieldDefaults)
@@ -512,6 +618,10 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
           if (detail.type === 'sql') {
             setSqlContent(detail.querySql || '')
+            // 更新参数缓存
+            if (detail.paramMap) {
+              setCachedParamValues(detail.paramMap)
+            }
           }
         }
       } catch (error) {
@@ -598,7 +708,8 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         dsCode: selectedSource.id,
         fields: selectedFields,
         type: editingTable.type || 'table',
-        querySql: editingTable.type === 'sql' ? sqlContent : ''
+        querySql: editingTable.type === 'sql' ? sqlContent : '',
+        paramMap: cachedParamValues
       }
 
       console.log('[TableManagement] 准备保存的表数据:', tableData)
@@ -940,9 +1051,8 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                     <Label className="w-14 text-right">表名</Label>
                     <Input
                       value={editingTable.tableName}
-                      disabled={editingTable.type !== 'sql'}
                       onChange={(e) => setEditingTable({ ...editingTable, tableName: e.target.value })}
-                      className={editingTable.type !== 'sql' ? "bg-muted flex-1" : "flex-1"}
+                      className="flex-1"
                     />
                   </div>
                   <div className="flex items-center gap-2">
@@ -1041,54 +1151,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                         ) : (
                           <Button
                             size="sm"
-
-                            onClick={async () => {
-                              if (!sqlContent.trim()) {
-                                toast({ variant: "destructive", title: "提示", description: "请输入 SQL 语句" })
-                                return
-                              }
-
-                              if (!isSdkAvailable()) {
-                                toast({ variant: "destructive", title: "错误", description: "SDK 不可用" })
-                                return
-                              }
-
-                              try {
-                                const fields = await getSqlStruct(
-                                  selectedSource.type || 'postgresql',
-                                  selectedSource.name,
-                                  sqlContent
-                                )
-
-                                if (fields) {
-                                  const currentFields = editingTable.fields || []
-                                  const currentFieldNames = new Set(currentFields.map(f => f.name))
-
-                                  // 仅添加不存在的新字段
-                                  const newUniqueFields = fields
-                                    .filter(f => !currentFieldNames.has(f.name))
-                                    .map(withFieldDefaults)
-
-                                  if (newUniqueFields.length === 0) {
-                                    toast({ title: "提示", description: "没有检测到新增字段" })
-                                  } else {
-                                    toast({ title: "解析成功", description: `已添加 ${newUniqueFields.length} 个新字段` })
-                                    setEditingTable(prev => ({
-                                      ...prev,
-                                      fields: [...(prev.fields || []), ...newUniqueFields]
-                                    }))
-                                  }
-                                  setActiveTab('structure')
-                                }
-                              } catch (error) {
-                                console.error('[TableManagement] SQL 运行失败:', error)
-                                toast({
-                                  variant: "destructive",
-                                  title: "运行失败",
-                                  description: error.message
-                                })
-                              }
-                            }}
+                            onClick={handleRunClick}
                           >
                             <Play className="h-4 w-4 mr-1" />
                             运行
@@ -1264,13 +1327,25 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                     </TabsContent>
 
                     {editingTable.type === 'sql' && (
-                      <TabsContent value="sql" forceMount={true} className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden p-1">
-                        <textarea
-                          className="flex-1 w-full p-4 font-mono text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-muted/30"
-                          placeholder="在此输入 SQL 语句..."
-                          value={sqlContent}
-                          onChange={(e) => setSqlContent(e.target.value)}
-                        />
+                      <TabsContent value="sql" forceMount={true} className="flex-1 flex gap-4 min-h-0 mt-0 data-[state=inactive]:hidden p-1">
+                        <div className="flex-1 flex flex-col gap-2">
+                          <Label className="text-muted-foreground text-xs">SQL 输入</Label>
+                          <textarea
+                            className="flex-1 w-full p-4 font-mono text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-muted/30"
+                            placeholder="在此输入 SQL 语句..."
+                            value={sqlContent}
+                            onChange={(e) => setSqlContent(e.target.value)}
+                          />
+                        </div>
+                        <div className="flex-1 flex flex-col gap-2">
+                          <Label className="text-muted-foreground text-xs">最终执行的 SQL</Label>
+                          <textarea
+                            className="flex-1 w-full p-4 font-mono text-sm border rounded-md resize-none bg-muted text-muted-foreground cursor-not-allowed"
+                            placeholder="点击运行后生成..."
+                            value={finalSqlContent}
+                            readOnly
+                          />
+                        </div>
                       </TabsContent>
                     )}
                   </Tabs>
@@ -1285,6 +1360,44 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
             </Button>
             <Button onClick={handleSaveTableDetail} disabled={saving || loadingDetail}>
               {saving ? '保存中...' : '确定'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 参数输入对话框 */}
+      <Dialog open={isParamDialogOpen} onOpenChange={setIsParamDialogOpen}>
+        <DialogContent className="max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>输入参数值</DialogTitle>
+            <DialogDescription>
+              检测到 SQL 中包含参数，请为每个参数设置值。默认值为 0。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+            {detectedParams.map(param => (
+              <div key={param} className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor={`param-${param}`} className="text-right">
+                  {param}
+                </Label>
+                <Input
+                  id={`param-${param}`}
+                  value={paramValues[param] || ''}
+                  onChange={(e) => setParamValues({
+                    ...paramValues,
+                    [param]: e.target.value
+                  })}
+                  className="col-span-3"
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsParamDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleConfirmParams}>
+              确定并运行
             </Button>
           </DialogFooter>
         </DialogContent>
