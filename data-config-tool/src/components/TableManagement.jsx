@@ -197,6 +197,14 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSource?.id])
 
+  // 当分页状态变化时重新加载数据
+  useEffect(() => {
+    if (selectedSource && window.sdkLoggedIn) {
+      loadTables()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize])
+
   // 从 SDK 获取模式名列表
   const loadSchemas = async () => {
     if (!selectedSource || !isSdkAvailable()) return
@@ -775,81 +783,88 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 border-b">
-        <div className="flex items-center justify-end gap-2">
-          {/* 表名搜索框 */}
-          <div className="relative w-[300px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="搜索（按Enter搜索）"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              className="pl-9"
-            />
+        <div className="flex items-center justify-between gap-4">
+          {/* 数据源名称 */}
+          <h2 className="text-lg font-semibold text-foreground">{selectedSource.name}</h2>
+          
+          <div className="flex items-center gap-2">
+            {/* 表名搜索框 */}
+            <div className="relative w-[300px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="搜索（按Enter搜索）"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="pl-9"
+              />
+            </div>
+            {/* 刷新按钮 */}
+            <Button variant="outline" size="sm" onClick={loadTables} disabled={loading}>
+              <Icons.RotateCw className="w-4 h-4 mr-2" />
+              刷新
+            </Button>
+            {/* 添加按钮 */}
+            <Button onClick={handleOpenAddDialog} size="sm">
+              <Icons.Plus className="w-4 h-4 mr-2" />
+              新增
+            </Button>
           </div>
-          {/* 刷新按钮 */}
-          <Button variant="outline" size="sm" onClick={loadTables} disabled={loading}>
-            <Icons.RotateCw className="w-4 h-4 mr-2" />
-            刷新
-          </Button>
-          {/* 添加按钮 */}
-          <Button onClick={handleOpenAddDialog} size="sm">
-            <Icons.Plus className="w-4 h-4 mr-2" />
-            新增
-          </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-4">
         {loading && currentTables.length === 0 && (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
             加载中...
           </div>
         )}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="py-2">模式名</TableHead>
-              <TableHead className="py-2">表名</TableHead>
-              <TableHead className="py-2">中文名</TableHead>
-              <TableHead className="py-2">描述</TableHead>
-              <TableHead className="w-[100px] py-2">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {currentTables.map((table) => (
-              <TableRow
-                key={table.id || table.tableName}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleOpenDetailDialog(table)}
-              >
-                <TableCell className="text-sm text-muted-foreground py-2">{table.schema}</TableCell>
-                <TableCell className="font-medium py-2">{table.tableName}</TableCell>
-                <TableCell className="py-2">{table.chineseName}</TableCell>
-                <TableCell className="text-muted-foreground py-2">{table.description}</TableCell>
-                <TableCell className="py-2">
-                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-destructive"
-                      onClick={(e) => handleDeleteTable(table.id, e)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-            {currentTables.length === 0 && (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                  暂无表数据,点击右上角添加表按钮
-                </TableCell>
+                <TableHead className="py-2">模式名</TableHead>
+                <TableHead className="py-2">表名</TableHead>
+                <TableHead className="py-2">中文名</TableHead>
+                <TableHead className="py-2">描述</TableHead>
+                <TableHead className="w-[100px] py-2">操作</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {currentTables.map((table) => (
+                <TableRow
+                  key={table.id || table.tableName}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleOpenDetailDialog(table)}
+                >
+                  <TableCell className="text-sm text-muted-foreground py-2">{table.schema}</TableCell>
+                  <TableCell className="font-medium py-2">{table.tableName}</TableCell>
+                  <TableCell className="py-2">{table.chineseName}</TableCell>
+                  <TableCell className="text-muted-foreground py-2">{table.description}</TableCell>
+                  <TableCell className="py-2">
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive"
+                        onClick={(e) => handleDeleteTable(table.id, e)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {currentTables.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    暂无表数据,点击右上角添加表按钮
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* 分页栏 */}
