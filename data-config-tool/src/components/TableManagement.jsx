@@ -74,7 +74,7 @@ const withFieldDefaults = (field = {}) => {
   }
 }
 
-export function TableManagement({ selectedSource, tables, setTables, dataSources }) {
+export function TableManagement({ selectedSource, tables, setTables, }) {
   const { toast } = useToast()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
@@ -105,7 +105,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
   const [loadingDbTables, setLoadingDbTables] = useState(false)
 
   // 右侧字段列表状态
-  const [tableFields, setTableFields] = useState([])
   const [formData, setFormData] = useState({ chineseName: '', description: '' })
   const [editingTable, setEditingTable] = useState(null)
   const [categoryOptions, setCategoryOptions] = useState([])
@@ -124,6 +123,8 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
   // 用 useRef 记录当前数据源ID，防止重复加载
   const lastLoadedSourceIdRef = React.useRef(null)
+  // 用 useRef 记录 dialog 中上次加载的 schema，防止模式切换时重复加载
+  const lastLoadedDialogSchemaRef = useRef(null)
 
   // 加载表列表
   // 加载表列表
@@ -258,25 +259,28 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     setTableSearchText('')
     setDialogPage(1)
     setSelectedTableName(null)
-    setTableFields([])
     setFormData({ chineseName: '', description: '' })
     setSchemas([])
     setTablesFromDb([])
+    // 重置 dialog schema 加载记录
+    lastLoadedDialogSchemaRef.current = null
     // 延迟打开对话框
     setTimeout(() => setIsAddDialogOpen(true), 0)
-    // 仅在「源表」模式下加载 schema 列表
-    if (addTableMode === 'table') {
-      await loadSchemas()
-    }
+    // 加载 schema 列表
+    await loadSchemas()
   }
 
   // 当 selectedSchema 变化时，加载对应的表列表（仅源表模式）
   useEffect(() => {
     if (isAddDialogOpen && addTableMode === 'table' && selectedSchema) {
-      loadTablesFromDb(selectedSchema)
+      // 只有当 schema 真正变化时才重新加载
+      if (lastLoadedDialogSchemaRef.current !== selectedSchema) {
+        lastLoadedDialogSchemaRef.current = selectedSchema
+        loadTablesFromDb(selectedSchema)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSchema, isAddDialogOpen])
+  }, [selectedSchema, isAddDialogOpen, addTableMode])
 
   useEffect(() => {
     if (isDetailDialogOpen) {
@@ -334,20 +338,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     } else {
       setLoadingDetail(false)
     }
-  }
-
-  // 切换字段选择状态
-  const toggleFieldSelection = (fieldName) => {
-    setTableFields(prev =>
-      prev.map(f => f.name === fieldName ? { ...f, selected: !f.selected } : f)
-    )
-  }
-
-  // 更新字段类型
-  const updateFieldType = (fieldName, fieldType) => {
-    setTableFields(prev =>
-      prev.map(f => f.name === fieldName ? { ...f, fieldType } : f)
-    )
   }
 
   const updateDetailFieldSelection = (fieldIndex) => {
@@ -417,18 +407,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
         index === fieldIndex ? { ...f, category } : f
       )
     }))
-  }
-
-  // 切换详情对话框中所有字段的全选/取消全选
-  const toggleSelectAllFields = () => {
-    setEditingTable(prev => {
-      if (!prev || !prev.fields) return prev
-      const allSelected = prev.fields.length > 0 && prev.fields.every(f => f.selected)
-      return {
-        ...prev,
-        fields: prev.fields.map(f => ({ ...f, selected: !allSelected }))
-      }
-    })
   }
 
   // 删除单个字段
