@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+// import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
@@ -8,9 +8,9 @@ import { ThemeProvider } from '@/components/ThemeProvider'
 // 组件会监听 sdkLoggedIn 事件来加载数据
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
+  // <StrictMode>
     <ThemeProvider defaultMode="light" defaultTheme="forest">
       <App />
     </ThemeProvider>
-  </StrictMode>,
+  // </StrictMode>,
 )

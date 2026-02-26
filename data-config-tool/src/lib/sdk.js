@@ -84,7 +84,7 @@ export const queryDataSourceList = async () => {
       const list = (result.data.list || []).map(item => ({
         id: item['编号'],
         name: item['数据源名称'] || '',
-        type: item['数据库类型'] || 'mysql',
+        type: item['数据库类型'] || '',
         driver: item['数据库驱动'] || '',
         url: item['数据源url'] || '',
         username: item['用户名'] || '',
@@ -417,7 +417,7 @@ export const querySchemaList = async (dataSource) => {
       panelCode: PANEL_CODES.SQL_TOOL,
       buttonName: '获取sql结果',
       buttonParam: {
-        dstype: dataSource.type || 'postgres',
+        dstype: dataSource.type,
         name: '模式sql',
         dsname: dataSource.name,
         regexMap: {}
@@ -449,7 +449,7 @@ export const queryDbTableList = async (dataSource, schemaName) => {
       panelCode: PANEL_CODES.SQL_TOOL,
       buttonName: '获取sql结果',
       buttonParam: {
-        dstype: dataSource.type || 'postgres',
+        dstype: dataSource.type,
         name: '表sql',
         dsname: dataSource.name,
         regexMap: { '$scheme_name$': schemaName }
@@ -485,7 +485,7 @@ export const queryTableStructure = async (dataSource, schemaName, tableName) => 
       panelCode: PANEL_CODES.SQL_TOOL,
       buttonName: '获取sql结果',
       buttonParam: {
-        dstype: dataSource.type || 'postgresql',
+        dstype: dataSource.type,
         name: '表结构sql',
         dsname: dataSource.name,
         regexMap: {

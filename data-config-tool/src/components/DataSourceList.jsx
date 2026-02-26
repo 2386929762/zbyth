@@ -46,7 +46,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
     url: '',
     username: '',
     password: '',
-    type: 'mysql',
+    type: DATABASE_TYPES[0].value,
     driver: ''
   })
 
@@ -115,7 +115,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
         url: '',
         username: '',
         password: '',
-        type: 'mysql',
+        type: DATABASE_TYPES[0].value,
         driver: ''
       })
     }

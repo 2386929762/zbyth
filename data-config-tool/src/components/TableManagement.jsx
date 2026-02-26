@@ -1,5 +1,5 @@
 import * as Icons from 'lucide-react'
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Settings, Search, ChevronRight, Trash2, RefreshCw, ArrowUp, ArrowDown, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PaginationBar } from '@/components/PaginationBar'
@@ -84,13 +84,17 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
   // 表管理页面的筛选条件
   const [searchInput, setSearchInput] = useState('') // 搜索框输入值
 
-  // 分页状态
+  // 分页状态（主列表）
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [totalItems, setTotalItems] = useState(0)
 
+  // 分页状态（添加表 dialog 内的选源表列表）
+  const [dialogPage, setDialogPage] = useState(1)
+  const [dialogPageSize, setDialogPageSize] = useState(50)
+
   // 左侧表列表状态
-  const [selectedSchema, setSelectedSchema] = useState('public')
+  const [selectedSchema, setSelectedSchema] = useState('')
   const [tableSearchText, setTableSearchText] = useState('')
   const [selectedTableName, setSelectedTableName] = useState(null)
 
@@ -172,11 +176,15 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     }
   }, [])
 
+  // 用于跳过数据源切换时由分页 effect 触发的重复加载
+  const skipPaginationEffectRef = useRef(false)
+
   // 选择数据源变化或 SDK 登录成功后加载数据
   useEffect(() => {
     const handleSdkLoggedIn = () => {
       if (selectedSource && lastLoadedSourceIdRef.current !== selectedSource.id) {
         lastLoadedSourceIdRef.current = selectedSource.id
+        skipPaginationEffectRef.current = true
         loadTables()
       }
     }
@@ -185,6 +193,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     if (window.sdkLoggedIn && selectedSource) {
       if (lastLoadedSourceIdRef.current !== selectedSource.id) {
         lastLoadedSourceIdRef.current = selectedSource.id
+        skipPaginationEffectRef.current = true
         loadTables()
       }
     }
@@ -199,6 +208,10 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
   // 当分页状态变化时重新加载数据
   useEffect(() => {
+    if (skipPaginationEffectRef.current) {
+      skipPaginationEffectRef.current = false
+      return
+    }
     if (selectedSource && window.sdkLoggedIn) {
       loadTables()
     }
@@ -213,9 +226,6 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     try {
       const schemaList = await querySchemaList(selectedSource)
       setSchemas(schemaList)
-      if (schemaList.length > 0 && !schemaList.includes(selectedSchema)) {
-        setSelectedSchema(schemaList[0])
-      }
     } catch (error) {
       console.error('[TableManagement] 获取schema列表失败:', error)
     } finally {
@@ -244,9 +254,9 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
       return
     }
     // 重置状态
-    setSelectedSchema('public')
+    setSelectedSchema('')
     setTableSearchText('')
-    setCurrentPage(1)
+    setDialogPage(1)
     setSelectedTableName(null)
     setTableFields([])
     setFormData({ chineseName: '', description: '' })
@@ -254,13 +264,15 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     setTablesFromDb([])
     // 延迟打开对话框
     setTimeout(() => setIsAddDialogOpen(true), 0)
-    // 加载 schema 列表
-    await loadSchemas()
+    // 仅在「源表」模式下加载 schema 列表
+    if (addTableMode === 'table') {
+      await loadSchemas()
+    }
   }
 
-  // 当 selectedSchema 变化时，加载对应的表列表
+  // 当 selectedSchema 变化时，加载对应的表列表（仅源表模式）
   useEffect(() => {
-    if (isAddDialogOpen && selectedSchema) {
+    if (isAddDialogOpen && addTableMode === 'table' && selectedSchema) {
       loadTablesFromDb(selectedSchema)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -278,10 +290,10 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
     table.comment.toLowerCase().includes(tableSearchText.toLowerCase())
   )
 
-  const totalPages = Math.ceil(filteredTables.length / pageSize)
+  const dialogTotalPages = Math.ceil(filteredTables.length / dialogPageSize)
   const paginatedTables = filteredTables.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
+    (dialogPage - 1) * dialogPageSize,
+    dialogPage * dialogPageSize
   )
 
   // 选择表时打开表结构对话框
@@ -476,7 +488,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
 
     try {
       const fields = await getSqlStruct(
-        selectedSource.type || 'postgresql',
+        selectedSource.type,
         selectedSource.name,
         sqlToExecute
       )
@@ -904,22 +916,23 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {schemas.length > 0 ? (
-                        schemas.map(schema => (
-                          <SelectItem key={schema} value={schema}>
-                            {schema}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="public">public</SelectItem>
-                      )}
+                      {schemas.map(schema => (
+                        <SelectItem key={schema} value={schema}>
+                          {schema}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <RadioGroup
                   value={addTableMode}
-                  onValueChange={setAddTableMode}
+                  onValueChange={(value) => {
+                      setAddTableMode(value)
+                      if (value === 'table' && schemas.length === 0) {
+                        loadSchemas()
+                      }
+                    }}
                   className="flex items-center gap-4 pl-[4rem]"
                 >
                   <div className="flex items-center space-x-2">
@@ -942,7 +955,7 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                     value={tableSearchText}
                     onChange={(e) => {
                       setTableSearchText(e.target.value)
-                      setCurrentPage(1)
+                      setDialogPage(1)
                     }}
                     className="pl-9 h-9"
                   />
@@ -989,27 +1002,27 @@ export function TableManagement({ selectedSource, tables, setTables, dataSources
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
+                      onClick={() => setDialogPage(p => Math.max(1, p - 1))}
+                      disabled={dialogPage === 1}
                     >
                       上一页
                     </Button>
                     <span className="text-muted-foreground">
-                      {currentPage} / {totalPages || 1}
+                      {dialogPage} / {dialogTotalPages || 1}
                     </span>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage >= totalPages}
+                      onClick={() => setDialogPage(p => Math.min(dialogTotalPages, p + 1))}
+                      disabled={dialogPage >= dialogTotalPages}
                     >
                       下一页
                     </Button>
                     <Select
-                      value={pageSize.toString()}
+                      value={dialogPageSize.toString()}
                       onValueChange={(value) => {
-                        setPageSize(Number(value))
-                        setCurrentPage(1)
+                        setDialogPageSize(Number(value))
+                        setDialogPage(1)
                       }}
                     >
                       <SelectTrigger className="w-24 h-8">
