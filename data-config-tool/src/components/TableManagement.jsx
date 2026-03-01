@@ -302,6 +302,10 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
 
   // 选择表时打开表结构对话框
   const handleSelectTableRow = async (tableName) => {
+    if (!selectedSchema) {
+      toast({ variant: "destructive", title: "提示", description: "请先选择模式名" })
+      return
+    }
     const tableInfo = tablesFromDb.find(t => t.name === tableName)
 
     // 先设置基本信息并打开对话框
@@ -1025,7 +1029,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
               关 闭
             </Button>
             {addTableMode === 'sql' && (
-              <Button onClick={handleConfirmAddTable}>
+              <Button onClick={handleConfirmAddTable} disabled={!selectedSchema}>
                 下一步
               </Button>
             )}
