@@ -89,6 +89,23 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
   const [pageSize, setPageSize] = useState(50)
   const [totalItems, setTotalItems] = useState(0)
 
+  // 切换按钮状态：'dataset' 或 'supplement'
+  const [contentTab, setContentTab] = useState('dataset')
+
+  // 数据补录表相关状态
+  const [supplementTables, setSupplementTables] = useState([])
+  const [supplementSearchInput, setSupplementSearchInput] = useState('')
+  const [supplementCurrentPage, setSupplementCurrentPage] = useState(1)
+  const [supplementPageSize, setSupplementPageSize] = useState(50)
+  const [supplementTotalItems, setSupplementTotalItems] = useState(0)
+  const [isAddSupplementDialogOpen, setIsAddSupplementDialogOpen] = useState(false)
+  const [isSupplementDetailDialogOpen, setIsSupplementDetailDialogOpen] = useState(false)
+  const [editingSupplementTable, setEditingSupplementTable] = useState(null)
+  const [supplementLoadingDetail, setSupplementLoadingDetail] = useState(false)
+  const [supplementSaving, setSupplementSaving] = useState(false)
+  const [supplementSelectedSchema, setSupplementSelectedSchema] = useState('')
+  const [supplementFormData, setSupplementFormData] = useState({ chineseName: '', description: '' })
+
   // 分页状态（添加表 dialog 内的选源表列表）
   const [dialogPage, setDialogPage] = useState(1)
   const [dialogPageSize, setDialogPageSize] = useState(50)
@@ -772,11 +789,120 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
     }
   }
 
+  // 打开添加数据补录表对话框
+  const handleOpenAddSupplementDialog = async () => {
+    if (!selectedSource) {
+      toast({ variant: "destructive", title: "提示", description: "请先选择数据源" })
+      return
+    }
+    setSupplementSelectedSchema('')
+    setSupplementFormData({ chineseName: '', description: '' })
+    setEditingSupplementTable({
+      tableName: '',
+      chineseName: '',
+      description: '',
+      schema: '',
+      fields: [],
+      dsCode: selectedSource.id
+    })
+    setSupplementLoadingDetail(false)
+    setTimeout(() => setIsAddSupplementDialogOpen(true), 0)
+    await loadSchemas()
+  }
+
+  // 保存数据补录表
+  const handleSaveSupplementTable = async () => {
+    if (!editingSupplementTable) return
+
+    if (!editingSupplementTable.tableName || !editingSupplementTable.tableName.trim()) {
+      toast({ variant: "destructive", title: "校验失败", description: "请输入表名" })
+      return
+    }
+
+    if (!editingSupplementTable.schema) {
+      toast({ variant: "destructive", title: "校验失败", description: "请选择模式名" })
+      return
+    }
+
+    const selectedFields = editingSupplementTable.fields || []
+    if (selectedFields.length === 0) {
+      toast({ variant: "destructive", title: "校验失败", description: "请至少添加一个字段" })
+      return
+    }
+
+    const hasPrimaryKey = selectedFields.some(f => f.primaryKey)
+    if (!hasPrimaryKey) {
+      toast({ variant: "destructive", title: "校验失败", description: "请选择一个字段作为主键" })
+      return
+    }
+
+    const emptyFieldName = selectedFields.find(f => !f.name || !f.name.trim())
+    if (emptyFieldName) {
+      toast({ variant: "destructive", title: "校验失败", description: "存在字段名为空的字段，请填写完整后再保存" })
+      return
+    }
+
+    setSupplementSaving(true)
+    try {
+      const newTable = {
+        id: editingSupplementTable.id || Date.now(),
+        tableName: editingSupplementTable.tableName,
+        chineseName: editingSupplementTable.chineseName,
+        description: editingSupplementTable.description,
+        schema: editingSupplementTable.schema,
+        dsCode: selectedSource.id,
+        fields: selectedFields
+      }
+
+      if (editingSupplementTable.id) {
+        setSupplementTables(supplementTables.map(t =>
+          t.id === editingSupplementTable.id ? newTable : t
+        ))
+      } else {
+        setSupplementTables([...supplementTables, newTable])
+      }
+
+      toast({ title: "保存成功", description: "数据补录表已保存" })
+      setTimeout(() => {
+        setIsAddSupplementDialogOpen(false)
+        setIsSupplementDetailDialogOpen(false)
+      }, 200)
+    } catch (error) {
+      console.error('[TableManagement] 保存数据补录表失败:', error)
+      toast({
+        variant: "destructive",
+        title: "保存失败",
+        description: error.message
+      })
+    } finally {
+      setSupplementSaving(false)
+    }
+  }
+
   const currentTables = tables.filter(t => t.dsCode === selectedSource.id)
+  const currentSupplementTables = supplementTables.filter(t => t.dsCode === selectedSource.id)
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b">
+      <div className="p-4 border-b space-y-4">
+        {/* 切换按钮 */}
+        <div className="flex gap-2">
+          <Button
+            variant={contentTab === 'dataset' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setContentTab('dataset')}
+          >
+            数据集
+          </Button>
+          <Button
+            variant={contentTab === 'supplement' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setContentTab('supplement')}
+          >
+            数据补录
+          </Button>
+        </div>
+        
         <div className="flex items-center justify-between gap-4">
           {/* 数据源名称 */}
           <h2 className="text-lg font-semibold text-foreground">{selectedSource.name}</h2>
@@ -787,8 +913,8 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="搜索（按Enter搜索）"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+                value={contentTab === 'dataset' ? searchInput : supplementSearchInput}
+                onChange={(e) => contentTab === 'dataset' ? setSearchInput(e.target.value) : setSupplementSearchInput(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 className="pl-9"
               />
@@ -799,7 +925,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
               刷新
             </Button>
             {/* 添加按钮 */}
-            <Button onClick={handleOpenAddDialog} size="sm">
+            <Button onClick={contentTab === 'dataset' ? handleOpenAddDialog : handleOpenAddSupplementDialog} size="sm">
               <Icons.Plus className="w-4 h-4 mr-2" />
               新增
             </Button>
@@ -808,70 +934,145 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {loading && currentTables.length === 0 && (
-          <div className="flex items-center justify-center py-8 text-muted-foreground">
-            加载中...
-          </div>
+        {contentTab === 'dataset' ? (
+          <>
+            {loading && currentTables.length === 0 && (
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                加载中...
+              </div>
+            )}
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="py-2">模式名</TableHead>
+                    <TableHead className="py-2">表名</TableHead>
+                    <TableHead className="py-2">中文名</TableHead>
+                    <TableHead className="py-2">描述</TableHead>
+                    <TableHead className="w-[100px] py-2">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentTables.map((table) => (
+                    <TableRow
+                      key={table.id || table.tableName}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleOpenDetailDialog(table)}
+                    >
+                      <TableCell className="text-sm text-muted-foreground py-2">{table.schema}</TableCell>
+                      <TableCell className="font-medium py-2">{table.tableName}</TableCell>
+                      <TableCell className="py-2">{table.chineseName}</TableCell>
+                      <TableCell className="text-muted-foreground py-2">{table.description}</TableCell>
+                      <TableCell className="py-2">
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive"
+                            onClick={(e) => handleDeleteTable(table.id, e)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {currentTables.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        暂无表数据,点击右上角添加表按钮
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="py-2">模式名</TableHead>
+                    <TableHead className="py-2">表名</TableHead>
+                    <TableHead className="py-2">中文名</TableHead>
+                    <TableHead className="py-2">描述</TableHead>
+                    <TableHead className="w-[100px] py-2">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentSupplementTables.map((table) => (
+                    <TableRow
+                      key={table.id || table.tableName}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => {
+                        setEditingSupplementTable(table)
+                        setTimeout(() => setIsAddSupplementDialogOpen(true), 0)
+                      }}
+                    >
+                      <TableCell className="text-sm text-muted-foreground py-2">{table.schema}</TableCell>
+                      <TableCell className="font-medium py-2">{table.tableName}</TableCell>
+                      <TableCell className="py-2">{table.chineseName}</TableCell>
+                      <TableCell className="text-muted-foreground py-2">{table.description}</TableCell>
+                      <TableCell className="py-2">
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (confirm('确定删除该表吗？')) {
+                                setSupplementTables(supplementTables.filter(t => t.id !== table.id))
+                                toast({ title: "删除成功", description: "表已删除" })
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {currentSupplementTables.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        暂无数据补录表,点击右上角添加表按钮
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="py-2">模式名</TableHead>
-                <TableHead className="py-2">表名</TableHead>
-                <TableHead className="py-2">中文名</TableHead>
-                <TableHead className="py-2">描述</TableHead>
-                <TableHead className="w-[100px] py-2">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {currentTables.map((table) => (
-                <TableRow
-                  key={table.id || table.tableName}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleOpenDetailDialog(table)}
-                >
-                  <TableCell className="text-sm text-muted-foreground py-2">{table.schema}</TableCell>
-                  <TableCell className="font-medium py-2">{table.tableName}</TableCell>
-                  <TableCell className="py-2">{table.chineseName}</TableCell>
-                  <TableCell className="text-muted-foreground py-2">{table.description}</TableCell>
-                  <TableCell className="py-2">
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-destructive"
-                        onClick={(e) => handleDeleteTable(table.id, e)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {currentTables.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    暂无表数据,点击右上角添加表按钮
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
       </div>
 
       {/* 分页栏 */}
-      <PaginationBar
-        totalSize={totalItems}
-        currentPage={currentPage}
-        pageSize={pageSize}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={(newSize) => {
-          setPageSize(parseInt(newSize))
-          setCurrentPage(1)
-        }}
-      />
+      {contentTab === 'dataset' ? (
+        <PaginationBar
+          totalSize={totalItems}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(parseInt(newSize))
+            setCurrentPage(1)
+          }}
+        />
+      ) : (
+        <PaginationBar
+          totalSize={supplementTotalItems}
+          currentPage={supplementCurrentPage}
+          pageSize={supplementPageSize}
+          onPageChange={setSupplementCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setSupplementPageSize(parseInt(newSize))
+            setSupplementCurrentPage(1)
+          }}
+        />
+      )}
 
       {/* 添加表对话框 - 单列表格布局 */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -1408,6 +1609,309 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
             </Button>
             <Button onClick={handleConfirmParams}>
               确定并运行
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 添加/编辑数据补录表对话框 */}
+      <Dialog open={isAddSupplementDialogOpen} onOpenChange={setIsAddSupplementDialogOpen}>
+        <DialogContent className="max-w-[1400px] h-[85vh] p-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0">
+            <DialogTitle>{editingSupplementTable?.id ? '编辑数据补录表' : '新增数据补录表'}</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 flex flex-col min-h-0 px-4 overflow-hidden">
+            <div className="space-y-4 pb-4">
+              {/* 第一行：模式名、表名、中文名 */}
+              <div className="grid grid-cols-3 gap-4">
+                {/* 模式名下拉框 */}
+                <div className="flex items-center gap-2">
+                  <Label className="w-14 text-right">模式名</Label>
+                  <Select
+                    value={editingSupplementTable?.schema || ''}
+                    onValueChange={(value) => {
+                      setEditingSupplementTable(prev => ({
+                        ...prev,
+                        schema: value
+                      }))
+                    }}
+                    disabled={loadingSchemas}
+                  >
+                    <SelectTrigger className="h-9 flex-1">
+                      <SelectValue placeholder="选择模式名" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {schemas.map(schema => (
+                        <SelectItem key={schema} value={schema}>
+                          {schema}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 表名输入框 */}
+                <div className="flex items-center gap-2">
+                  <Label className="w-14 text-right">表名</Label>
+                  <Input
+                    value={editingSupplementTable?.tableName || ''}
+                    onChange={(e) => {
+                      setEditingSupplementTable(prev => ({
+                        ...prev,
+                        tableName: e.target.value
+                      }))
+                    }}
+                    placeholder="输入表名"
+                    className="flex-1"
+                  />
+                </div>
+
+                {/* 中文名输入框 */}
+                <div className="flex items-center gap-2">
+                  <Label className="w-14 text-right">中文名</Label>
+                  <Input
+                    value={editingSupplementTable?.chineseName || ''}
+                    onChange={(e) => {
+                      setEditingSupplementTable(prev => ({
+                        ...prev,
+                        chineseName: e.target.value
+                      }))
+                    }}
+                    placeholder="输入中文名"
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+
+              {/* 描述输入框 */}
+              <div className="flex items-center gap-2">
+                <Label className="w-14 text-right">描述</Label>
+                <Input
+                  value={editingSupplementTable?.description || ''}
+                  onChange={(e) => {
+                    setEditingSupplementTable(prev => ({
+                      ...prev,
+                      description: e.target.value
+                    }))
+                  }}
+                  placeholder="输入描述"
+                  className="flex-1"
+                />
+              </div>
+
+              {/* 表结构列表 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">表结构</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (!editingSupplementTable?.fields) return
+                        const newFields = [...editingSupplementTable.fields]
+                        let changed = false
+                        for (let i = 1; i < newFields.length; i++) {
+                          if (newFields[i].selected && !newFields[i - 1].selected) {
+                            [newFields[i], newFields[i - 1]] = [newFields[i - 1], newFields[i]]
+                            changed = true
+                          }
+                        }
+                        if (changed) {
+                          setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                        }
+                      }}
+                    >
+                      <ArrowUp className="h-4 w-4 mr-1" />
+                      上移
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (!editingSupplementTable?.fields) return
+                        const newFields = [...editingSupplementTable.fields]
+                        let changed = false
+                        for (let i = newFields.length - 2; i >= 0; i--) {
+                          if (newFields[i].selected && !newFields[i + 1].selected) {
+                            [newFields[i], newFields[i + 1]] = [newFields[i + 1], newFields[i]]
+                            changed = true
+                          }
+                        }
+                        if (changed) {
+                          setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                        }
+                      }}
+                    >
+                      <ArrowDown className="h-4 w-4 mr-1" />
+                      下移
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const newField = {
+                          name: '',
+                          type: '文本',
+                          comment: '',
+                          fieldType: '属性',
+                          category: '',
+                          dateFormat: '',
+                          primaryKey: false,
+                          sortDirection: 'asc',
+                          selected: false
+                        }
+                        setEditingSupplementTable(prev => ({
+                          ...prev,
+                          fields: [...(prev.fields || []), newField]
+                        }))
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      添加字段
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 字段列表表格 */}
+                <div className="border rounded-md overflow-hidden max-h-[300px] overflow-y-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-muted">
+                      <TableRow>
+                        <TableHead className="w-12 py-2">选择</TableHead>
+                        <TableHead className="py-2">字段名</TableHead>
+                        <TableHead className="py-2">数据类型</TableHead>
+                        <TableHead className="py-2">字段中文名</TableHead>
+                        <TableHead className="py-2">字段分类</TableHead>
+                        <TableHead className="py-2">主键</TableHead>
+                        <TableHead className="w-12 py-2">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(editingSupplementTable?.fields || []).map((field, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="p-2">
+                            <Checkbox
+                              checked={field.selected || false}
+                              onCheckedChange={() => {
+                                const newFields = [...(editingSupplementTable?.fields || [])]
+                                newFields[index] = { ...newFields[index], selected: !newFields[index].selected }
+                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Input
+                              value={field.name || ''}
+                              onChange={(e) => {
+                                const newFields = [...(editingSupplementTable?.fields || [])]
+                                newFields[index] = { ...newFields[index], name: e.target.value }
+                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                              }}
+                              className="h-8"
+                              placeholder="字段名"
+                            />
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Select
+                              value={field.type || '文本'}
+                              onValueChange={(value) => {
+                                const newFields = [...(editingSupplementTable?.fields || [])]
+                                newFields[index] = { ...newFields[index], type: value, dateFormat: value === '日期' ? (field.dateFormat || 'yyyyMMdd') : '' }
+                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                              }}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TYPE_OPTIONS.map(option => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Input
+                              value={field.comment || ''}
+                              onChange={(e) => {
+                                const newFields = [...(editingSupplementTable?.fields || [])]
+                                newFields[index] = { ...newFields[index], comment: e.target.value }
+                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                              }}
+                              className="h-8"
+                              placeholder="字段中文名"
+                            />
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Select
+                              value={field.fieldType || '属性'}
+                              onValueChange={(value) => {
+                                const newFields = [...(editingSupplementTable?.fields || [])]
+                                newFields[index] = { ...newFields[index], fieldType: value, category: value === '维度' ? field.category : '' }
+                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                              }}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="度量">度量</SelectItem>
+                                <SelectItem value="维度">维度</SelectItem>
+                                <SelectItem value="属性">属性</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Checkbox
+                              checked={field.primaryKey || false}
+                              onCheckedChange={() => {
+                                const newFields = [...(editingSupplementTable?.fields || [])]
+                                newFields[index] = { ...newFields[index], primaryKey: !newFields[index].primaryKey }
+                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive p-0"
+                              onClick={() => {
+                                const newFields = [...(editingSupplementTable?.fields || [])]
+                                newFields.splice(index, 1)
+                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {(!editingSupplementTable?.fields || editingSupplementTable.fields.length === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-4">
+                            暂无字段，点击"添加字段"按钮添加
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="px-6 py-3 border-t flex-shrink-0">
+            <Button variant="outline" onClick={() => setIsAddSupplementDialogOpen(false)} disabled={supplementSaving}>
+              取消
+            </Button>
+            <Button onClick={handleSaveSupplementTable} disabled={supplementSaving}>
+              {supplementSaving ? '保存中...' : '保存'}
             </Button>
           </DialogFooter>
         </DialogContent>
