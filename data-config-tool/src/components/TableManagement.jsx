@@ -1622,7 +1622,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
           </DialogHeader>
 
           <div className="flex-1 flex flex-col min-h-0 px-4 overflow-hidden">
-            <div className="space-y-4 pb-4">
+            <div className="flex-1 flex flex-col min-h-0 space-y-4">
               {/* 第一行：模式名、表名、中文名 */}
               <div className="grid grid-cols-3 gap-4">
                 {/* 模式名下拉框 */}
@@ -1701,8 +1701,8 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
               </div>
 
               {/* 表结构列表 */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
+              <div className="flex-1 flex flex-col min-h-0 space-y-2">
+                <div className="flex items-center justify-between flex-shrink-0">
                   <Label className="text-sm font-medium">表结构</Label>
                   <div className="flex gap-2">
                     <Button
@@ -1774,34 +1774,63 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                 </div>
 
                 {/* 字段列表表格 */}
-                <div className="border rounded-md overflow-hidden max-h-[300px] overflow-y-auto">
-                  <Table>
+                <div className="flex-1 border rounded-md overflow-auto min-h-0">
+                  <Table className="w-full">
                     <TableHeader className="sticky top-0 bg-muted">
                       <TableRow>
-                        <TableHead className="w-12 py-2">选择</TableHead>
-                        <TableHead className="py-2">字段名</TableHead>
-                        <TableHead className="py-2">数据类型</TableHead>
-                        <TableHead className="py-2">字段中文名</TableHead>
-                        <TableHead className="py-2">字段分类</TableHead>
-                        <TableHead className="py-2">主键</TableHead>
-                        <TableHead className="w-12 py-2">操作</TableHead>
+                        <TableHead className="w-[60px] p-2 text-center">主键</TableHead>
+                        <TableHead className="w-[100px] p-2">排序</TableHead>
+                        <TableHead className="w-[300px] p-2">字段名</TableHead>
+                        <TableHead className="w-[110px] p-2">类型</TableHead>
+                        <TableHead className="w-[200px] p-2">日期格式</TableHead>
+                        <TableHead className="p-2">字段中文名</TableHead>
+                        <TableHead className="w-[60px] p-2 text-center">操作</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {(editingSupplementTable?.fields || []).map((field, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="p-2">
+                        <TableRow
+                          key={index}
+                          onClick={() => {
+                            const newFields = [...(editingSupplementTable?.fields || [])]
+                            newFields.forEach((f, i) => {
+                              f.selected = i === index
+                            })
+                            setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                          }}
+                          className={`cursor-pointer hover:bg-muted/50 ${field.selected ? 'bg-muted' : ''}`}
+                        >
+                          <TableCell className="p-2 text-center">
                             <Checkbox
-                              checked={field.selected || false}
+                              checked={field.primaryKey || false}
                               onCheckedChange={() => {
                                 const newFields = [...(editingSupplementTable?.fields || [])]
-                                newFields[index] = { ...newFields[index], selected: !newFields[index].selected }
+                                newFields[index] = { ...newFields[index], primaryKey: !newFields[index].primaryKey }
                                 setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
                               }}
                               onClick={(e) => e.stopPropagation()}
                             />
                           </TableCell>
                           <TableCell className="p-2">
+                            <Select
+                              value={field.sortDirection || 'asc'}
+                              onValueChange={(value) => {
+                                const newFields = [...(editingSupplementTable?.fields || [])]
+                                newFields[index] = { ...newFields[index], sortDirection: value }
+                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                              }}
+                              disabled={!field.primaryKey}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue placeholder="无" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="asc">正序</SelectItem>
+                                <SelectItem value="desc">倒序</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="font-mono p-2">
                             <Input
                               value={field.name || ''}
                               onChange={(e) => {
@@ -1836,6 +1865,19 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                           </TableCell>
                           <TableCell className="p-2">
                             <Input
+                              value={field.dateFormat || ''}
+                              onChange={(e) => {
+                                const newFields = [...(editingSupplementTable?.fields || [])]
+                                newFields[index] = { ...newFields[index], dateFormat: e.target.value }
+                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                              }}
+                              className="h-8"
+                              placeholder="yyyyMMdd"
+                              disabled={field.type !== '日期'}
+                            />
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Input
                               value={field.comment || ''}
                               onChange={(e) => {
                                 const newFields = [...(editingSupplementTable?.fields || [])]
@@ -1846,42 +1888,13 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                               placeholder="字段中文名"
                             />
                           </TableCell>
-                          <TableCell className="p-2">
-                            <Select
-                              value={field.fieldType || '属性'}
-                              onValueChange={(value) => {
-                                const newFields = [...(editingSupplementTable?.fields || [])]
-                                newFields[index] = { ...newFields[index], fieldType: value, category: value === '维度' ? field.category : '' }
-                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
-                              }}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="度量">度量</SelectItem>
-                                <SelectItem value="维度">维度</SelectItem>
-                                <SelectItem value="属性">属性</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell className="p-2">
-                            <Checkbox
-                              checked={field.primaryKey || false}
-                              onCheckedChange={() => {
-                                const newFields = [...(editingSupplementTable?.fields || [])]
-                                newFields[index] = { ...newFields[index], primaryKey: !newFields[index].primaryKey }
-                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </TableCell>
-                          <TableCell className="p-2">
+                          <TableCell className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                             <Button
                               size="sm"
                               variant="ghost"
                               className="h-8 w-8 text-destructive p-0"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation()
                                 const newFields = [...(editingSupplementTable?.fields || [])]
                                 newFields.splice(index, 1)
                                 setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
