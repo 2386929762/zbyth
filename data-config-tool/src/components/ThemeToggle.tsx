@@ -9,8 +9,8 @@ import { Label } from '@/components/ui/label'
 export function ThemeToggle() {
     const { mode, themePreset, setMode, setThemePreset } = useTheme()
     const [isOpen, setIsOpen] = useState(false)
-    const dropdownRef = useRef(null)
-    const timeoutRef = useRef(null)
+    const dropdownRef = useRef<HTMLDivElement>(null)
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const handleMouseEnter = () => {
         if (timeoutRef.current) {
@@ -28,8 +28,8 @@ export function ThemeToggle() {
 
     // Close click outside
     useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsOpen(false)
             }
         }

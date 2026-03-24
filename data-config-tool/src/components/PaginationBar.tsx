@@ -6,7 +6,7 @@ import {
     PaginationLink,
     PaginationNext,
     PaginationPrevious,
-} from '@/components/ui/pagination.jsx'
+} from '@/components/ui/pagination'
 import {
     Select,
     SelectContent,
@@ -15,13 +15,21 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 
+interface PaginationBarProps {
+    totalSize: number
+    currentPage: number
+    pageSize: number
+    onPageChange: (page: number) => void
+    onPageSizeChange: (size: string) => void
+}
+
 export function PaginationBar({
     totalSize,
     currentPage,
     pageSize,
     onPageChange,
     onPageSizeChange
-}) {
+}: PaginationBarProps) {
     const totalPages = Math.ceil(totalSize / pageSize)
 
     return (
@@ -40,7 +48,7 @@ export function PaginationBar({
 
                     {/* 页码 */}
                     {(() => {
-                        const pages = []
+                        const pages: (number | string)[] = []
 
                         if (totalPages <= 7) {
                             for (let i = 1; i <= totalPages; i++) {
@@ -62,7 +70,7 @@ export function PaginationBar({
                                     <PaginationEllipsis />
                                 ) : (
                                     <PaginationLink
-                                        onClick={() => onPageChange(page)}
+                                        onClick={() => onPageChange(page as number)}
                                         isActive={currentPage === page}
                                         className="cursor-pointer"
                                     >

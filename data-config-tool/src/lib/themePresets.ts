@@ -3,7 +3,23 @@
  * 提供多套主题配色方案供用户选择
  */
 
-export const themePresets = [
+export interface ThemeColors {
+    primary: string;
+    success: string;
+    warning: string;
+    danger: string;
+    info: string;
+}
+
+export interface ThemePreset {
+    id: string;
+    name: string;
+    description: string;
+    light: ThemeColors;
+    dark: ThemeColors;
+}
+
+export const themePresets: ThemePreset[] = [
     {
         id: 'default',
         name: '默认主题',
@@ -123,7 +139,7 @@ export const themePresets = [
 /**
  * 应用主题颜色到 CSS 变量
  */
-export function applyThemeColors(preset, mode) {
+export function applyThemeColors(preset: ThemePreset, mode: string) {
     // Check system preference if mode is system
     const effectiveMode = mode === 'system'
         ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
@@ -144,7 +160,7 @@ export function applyThemeColors(preset, mode) {
 /**
  * 获取当前主题预设
  */
-export function getCurrentThemePreset() {
+export function getCurrentThemePreset(): ThemePreset {
     const savedId = localStorage.getItem('theme-preset');
     return themePresets.find(p => p.id === savedId) || themePresets[0];
 }

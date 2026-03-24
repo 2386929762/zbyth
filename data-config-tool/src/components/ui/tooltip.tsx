@@ -2,20 +2,26 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-const TooltipProvider = ({ children }) => {
+const TooltipProvider = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>
 }
 
-const Tooltip = ({ children }) => {
+const Tooltip = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>
 }
 
-const TooltipTrigger = React.forwardRef(({ children, ...props }, ref) => {
+const TooltipTrigger = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ children, ...props }, ref) => {
   return <div ref={ref} {...props}>{children}</div>
 })
 TooltipTrigger.displayName = "TooltipTrigger"
 
-const TooltipContent = React.forwardRef(({ className, children, ...props }, ref) => (
+const TooltipContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, children, ...props }, ref) => (
   <div
     ref={ref}
     className={cn(

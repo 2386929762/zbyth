@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Database, Pencil, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Database, Pencil, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -23,7 +22,8 @@ import {
   isSdkAvailable,
   queryDataSourceList,
   saveDataSource,
-  deleteDataSource
+  deleteDataSource,
+  type DataSource,
 } from '@/lib/sdk'
 import { useToast } from "@/hooks/use-toast"
 
@@ -35,13 +35,20 @@ const DATABASE_TYPES = [
   { value: 'other', label: 'Other' },
 ]
 
-export function DataSourceList({ dataSources, setDataSources, selectedSource, onSelectSource }) {
+interface DataSourceListProps {
+  dataSources: DataSource[]
+  setDataSources: (sources: DataSource[]) => void
+  selectedSource: DataSource | null
+  onSelectSource: (source: DataSource) => void
+}
+
+export function DataSourceList({ dataSources, setDataSources, selectedSource, onSelectSource }: DataSourceListProps) {
   const { toast } = useToast()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingSource, setEditingSource] = useState(null)
+  const [editingSource, setEditingSource] = useState<DataSource | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<DataSource>({
     name: '',
     url: '',
     username: '',
@@ -73,7 +80,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
       toast({
         variant: "destructive",
         title: "加载失败",
-        description: error.message
+        description: (error as Error).message
       })
     } finally {
       setLoading(false)
@@ -104,7 +111,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
     }
   }, [loadDataSources])
 
-  const handleOpenDialog = (source = null) => {
+  const handleOpenDialog = (source: DataSource | null = null) => {
     if (source) {
       setEditingSource(source)
       setFormData({ ...source })
@@ -145,7 +152,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
     setSaving(true)
     try {
       // 构建保存数据
-      const dataToSave = {
+      const dataToSave: DataSource = {
         name: formData.name,
         type: formData.type,
         driver: formData.driver,
@@ -186,14 +193,14 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
       toast({
         variant: "destructive",
         title: "保存失败",
-        description: error.message
+        description: (error as Error).message
       })
     } finally {
       setSaving(false)
     }
   }
 
-  const handleDelete = async (id) => {
+  const _handleDelete = async (id: string | number) => {
     try {
       if (isSdkAvailable()) {
         await deleteDataSource(id)
@@ -208,7 +215,7 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
       toast({
         variant: "destructive",
         title: "删除失败",
-        description: error.message
+        description: (error as Error).message
       })
     }
   }
@@ -241,13 +248,13 @@ export function DataSourceList({ dataSources, setDataSources, selectedSource, on
             onClick={() => onSelectSource(source)}
           >
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Database className="h-4 w-4 flex-shrink-0" />
+              <Database className="h-4 w-4 flex-shrink-0 text-primary" />
               <span className="text-sm font-medium truncate">{source.name}</span>
             </div>
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 w-7 p-0"
+              className="h-7 w-7 p-0 text-primary"
               onClick={(e) => {
                 e.stopPropagation()
                 handleOpenDialog(source)

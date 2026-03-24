@@ -3,6 +3,61 @@
  * 提供数据源和表管理的 CRUD 操作
  */
 
+// ==================== Types ====================
+
+export interface DataSource {
+  id?: string | number;
+  name: string;
+  type: string;
+  driver: string;
+  url: string;
+  username: string;
+  password: string;
+}
+
+export interface TableField {
+  name: string;
+  type: string;
+  length: string | number;
+  precision: string | number;
+  comment: string;
+  fieldType: string;
+  category: string;
+  dateFormat: string;
+  selected: boolean;
+  primaryKey: boolean;
+  sortDirection: string;
+  isDefault?: boolean;
+  isNew?: boolean;
+}
+
+export interface TableInfo {
+  id?: string | number;
+  schema: string;
+  tableName: string;
+  chineseName: string;
+  description: string;
+  dsCode: string;
+  type?: string;
+  querySql?: string;
+  paramMap?: Record<string, string>;
+  fields: TableField[];
+}
+
+export interface DbTableInfo {
+  name: string;
+  comment: string;
+  schema: string;
+}
+
+export interface CategoryOption {
+  value: string;
+  label: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SdkResult = Record<string, any>;
+
 // 获取 SDK 实例
 const getSdk = () => {
   if (window.panelxSdk) {
@@ -12,14 +67,14 @@ const getSdk = () => {
 };
 
 const getValidSdk = () => {
-  var sdk = getSdk();
+  const sdk = getSdk();
   if (!sdk) 
     throw new Error('SDK 不可用');
   return sdk;
 };
 
 // 类型标准化映射
-const TYPE_MAP = {
+const TYPE_MAP: Record<string, string[]> = {
   文本: ['CHAR', 'NCHAR', 'VARCHAR', 'VARCHAR2', 'NVARCHAR', 'NVARCHAR2', 'TEXT', 'CLOB', 'STRING', 'LONGTEXT', 'MEDIUMTEXT'],
   日期: ['DATE', 'DATETIME', 'TIMESTAMP', 'TIME', 'YEAR'],
   数值: ['NUMBER', 'NUMERIC', 'DECIMAL', 'BIGINT', 'INT', 'INTEGER', 'SMALLINT', 'TINYINT', 'DOUBLE', 'FLOAT', 'REAL', 'MONEY']
@@ -31,16 +86,16 @@ export const PANEL_CODES = {
   SQL_TOOL: 'IML_00009',
   DICTIONARY: 'IML_00011',
   SUPPLEMENT_TABLE: 'IML_00028'
-};
+} as const;
 
-export const normalizeFieldCategory = (fieldType) => {
+export const normalizeFieldCategory = (fieldType: string): string => {
   if (fieldType === '维度' || fieldType === '度量' || fieldType === '属性') {
     return fieldType;
   }
   return '属性';
 };
 
-export const normalizeDbType = (dbType) => {
+export const normalizeDbType = (dbType: string | undefined | null): string => {
   const raw = String(dbType || '').toUpperCase();
   const base = raw.replace(/\(.*/, '');
 
@@ -50,7 +105,7 @@ export const normalizeDbType = (dbType) => {
 };
 
 // 检查 SDK 是否可用
-export const isSdkAvailable = () => {
+export const isSdkAvailable = (): boolean => {
   return !!getSdk() && !window.sdkLoadFailed;
 };
 
@@ -60,7 +115,7 @@ export const isSdkAvailable = () => {
 /**
  * 查询数据源列表
  */
-export const queryDataSourceList = async () => {
+export const queryDataSourceList = async (): Promise<{ list: DataSource[]; totalSize: number }> => {
   const sdk = getValidSdk();
 
   try {
@@ -69,12 +124,12 @@ export const queryDataSourceList = async () => {
       buttonName: 'queryDataSourceList'
     };
 
-    const result = await sdk.api.callButton(params);
-    console.log('[SDK] 查询数据源列表结果:', result);
+    const result = await sdk.api.callButton(params) as SdkResult;
+    // console.log('[SDK] 查询数据源列表结果:', result);
 
     if (result && result.data) {
       // 转换数据格式：后端字段 -> 前端字段
-      const list = (result.data.list || []).map(item => ({
+      const list: DataSource[] = (result.data.list || []).map((item: SdkResult) => ({
         id: item['编号'],
         name: item['数据源名称'] || '',
         type: item['数据库类型'] || '',
@@ -95,12 +150,12 @@ export const queryDataSourceList = async () => {
   }
 };
 
-export const saveDataSource = async (dataSource) => {
+export const saveDataSource = async (dataSource: DataSource): Promise<SdkResult> => {
   const sdk = getValidSdk();
 
   try {
     // 构建 formData，前端字段 -> 后端字段
-    const formData = {
+    const formData: SdkResult = {
       '数据源名称': dataSource.name,
       '数据库类型': dataSource.type,
       '数据库驱动': dataSource.driver || '',
@@ -120,9 +175,9 @@ export const saveDataSource = async (dataSource) => {
       formData
     };
 
-    console.log('[SDK] 保存数据源参数:', params);
+    // console.log('[SDK] 保存数据源参数:', params);
     const result = await sdk.api.callButton(params);
-    console.log('[SDK] 保存数据源结果:', result);
+    // console.log('[SDK] 保存数据源结果:', result);
     return result;
   } catch (error) {
     console.error('[SDK] 保存数据源失败:', error);
@@ -130,7 +185,7 @@ export const saveDataSource = async (dataSource) => {
   }
 };
 
-export const deleteDataSource = async (id) => {
+export const deleteDataSource = async (id: string | number): Promise<SdkResult> => {
   const sdk = getValidSdk();
 
   try {
@@ -142,9 +197,9 @@ export const deleteDataSource = async (id) => {
       }
     };
 
-    console.log('[SDK] 删除数据源参数:', params);
+    // console.log('[SDK] 删除数据源参数:', params);
     const result = await sdk.api.callButton(params);
-    console.log('[SDK] 删除数据源结果:', result);
+    // console.log('[SDK] 删除数据源结果:', result);
     return result;
   } catch (error) {
     console.error('[SDK] 删除数据源失败:', error);
@@ -154,16 +209,16 @@ export const deleteDataSource = async (id) => {
 
 // ==================== 表管理 API ====================
 
-export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, pageSize = 100) => {
+export const queryTableList = async (dsCode: string | number | null = null, keyword: string | null = null, pageNo = 1, pageSize = 100): Promise<{ list: TableInfo[]; totalSize: number }> => {
   const sdk = getValidSdk();
 
   try {
-    const condition = {};
+    const condition: SdkResult = {};
     if (dsCode) {
       condition['dsCode'] = dsCode;
     }
 
-    const params = {
+    const params: SdkResult = {
       panelCode: PANEL_CODES.TABLE,
       condition,
       pageNo,
@@ -173,25 +228,26 @@ export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, 
       }
     };
 
-    console.log('[SDK] keyword 参数:', keyword, '类型:', typeof keyword, '是否添加:', !!keyword)
+    // console.log('[SDK] keyword 参数:', keyword, '类型:', typeof keyword, '是否添加:', !!keyword)
     if (keyword) {
       params.keyword = keyword;
-      console.log('[SDK] 已添加 keyword 到 params')
+      // console.log('[SDK] 已添加 keyword 到 params')
     }
 
-    console.log('[SDK] 最终请求参数:', params)
-    const result = await sdk.api.queryFormDataList(params);
-    console.log('[SDK] 查询表列表结果:', result);
+    // console.log('[SDK] 最终请求参数:', params)
+    const result = await sdk.api.queryFormDataList(params) as SdkResult;
+    // console.log('[SDK] 查询表列表结果:', result);
 
     if (result && result.data) {
       // 转换数据格式：后端字段 -> 前端字段
-      const list = (result.data.list || []).map(item => ({
+      const list: TableInfo[] = (result.data.list || []).map((item: SdkResult) => ({
         id: item['编号'],
         schema: item['模式名'] || '',
         tableName: item['表名'] || '',
         chineseName: item['中文名'] || '',
         description: item['描述'] || '',
         dsCode: item['dsCode'] || '',
+        fields: [],
       }));
       return {
         list,
@@ -205,16 +261,16 @@ export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, 
   }
 };
 
-export const querySupplementTableList = async (dsCode = null, keyword = null, pageNo = 1, pageSize = 100) => {
+export const querySupplementTableList = async (dsCode: string | number | null = null, keyword: string | null = null, pageNo = 1, pageSize = 100): Promise<{ list: TableInfo[]; totalSize: number }> => {
   const sdk = getValidSdk();
 
   try {
-    const condition = {};
+    const condition: SdkResult = {};
     if (dsCode) {
       condition['dsCode'] = dsCode;
     }
 
-    const params = {
+    const params: SdkResult = {
       panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
       condition,
       pageNo,
@@ -224,25 +280,26 @@ export const querySupplementTableList = async (dsCode = null, keyword = null, pa
       }
     };
 
-    console.log('[SDK] keyword 参数:', keyword, '类型:', typeof keyword, '是否添加:', !!keyword)
+    // console.log('[SDK] keyword 参数:', keyword, '类型:', typeof keyword, '是否添加:', !!keyword)
     if (keyword) {
       params.keyword = keyword;
-      console.log('[SDK] 已添加 keyword 到 params')
+      // console.log('[SDK] 已添加 keyword 到 params')
     }
 
-    console.log('[SDK] 最终请求参数:', params)
-    const result = await sdk.api.queryFormDataList(params);
-    console.log('[SDK] 查询数据补录表列表结果:', result);
+    // console.log('[SDK] 最终请求参数:', params)
+    const result = await sdk.api.queryFormDataList(params) as SdkResult;
+    // console.log('[SDK] 查询数据补录表列表结果:', result);
 
     if (result && result.data) {
       // 转换数据格式：后端字段 -> 前端字段
-      const list = (result.data.list || []).map(item => ({
+      const list: TableInfo[] = (result.data.list || []).map((item: SdkResult) => ({
         id: item['编号'],
         schema: item['模式名'] || '',
         tableName: item['表名'] || '',
         chineseName: item['中文名'] || '',
         description: item['描述'] || '',
         dsCode: item['dsCode'] || '',
+        fields: [],
       }));
       return {
         list,
@@ -259,7 +316,7 @@ export const querySupplementTableList = async (dsCode = null, keyword = null, pa
 /**
  * 解析表结构字段
  */
-const parseTableStructure = (tableStructure) => {
+const parseTableStructure = (tableStructure: unknown): TableField[] => {
   if (!tableStructure) return [];
 
   let fields = tableStructure;
@@ -274,7 +331,7 @@ const parseTableStructure = (tableStructure) => {
   }
 
   if (Array.isArray(fields)) {
-    return fields.map(field => {
+    return fields.map((field: SdkResult) => {
       // 后端返回的类型已经是标准化的（文本/日期/数值），直接使用
       const type = field['类型'] || '文本';
       const fieldType = normalizeFieldCategory(field['字段分类']);
@@ -300,30 +357,30 @@ const parseTableStructure = (tableStructure) => {
  * 解析 SQL 执行结果为字段列表
  * 用于 queryTableStructure 和 getSqlStruct
  */
-const parseSqlResultToFields = (result) => {
+const parseSqlResultToFields = (result: SdkResult): TableField[] => {
   if (result && result.data && result.data.left && result.data.right) {
-    const fieldIndexMap = {};
-    result.data.left.forEach((col, index) => {
+    const fieldIndexMap: Record<string, number> = {};
+    result.data.left.forEach((col: unknown, index: number) => {
       // 兼容对象({name: '...'})和字符串两种格式
-      const colName = (typeof col === 'object' && col?.name) ? col.name : col;
+      const colName = (typeof col === 'object' && col !== null && 'name' in col) ? (col as { name: string }).name : col as string;
       fieldIndexMap[colName] = index;
     });
 
-    return result.data.right.map(row => {
+    return result.data.right.map((row: unknown[]) => {
       const fieldName = fieldIndexMap['字段名'] !== undefined ? row[fieldIndexMap['字段名']] : '';
       const type = fieldIndexMap['类型'] !== undefined ? row[fieldIndexMap['类型']] : '';
       const length = fieldIndexMap['长度'] !== undefined ? row[fieldIndexMap['长度']] : '';
       const precision = fieldIndexMap['精度'] !== undefined ? row[fieldIndexMap['精度']] : '';
       const comment = fieldIndexMap['字段中文名'] !== undefined ? row[fieldIndexMap['字段中文名']] : '';
 
-      const normalizedType = normalizeDbType(type);
+      const normalizedType = normalizeDbType(type as string);
 
       return {
-        name: fieldName || '',
+        name: (fieldName as string) || '',
         type: normalizedType,
         length: (length === -1 || length === '-1') ? '' : (length || ''),
         precision: (precision === -1 || precision === '-1') ? '' : (precision || ''),
-        comment: comment || '',
+        comment: (comment as string) || '',
         fieldType: '属性',
         category: '',
         dateFormat: normalizedType === '日期' ? 'yyyyMMdd' : '',
@@ -336,7 +393,7 @@ const parseSqlResultToFields = (result) => {
   return [];
 };
 
-export const queryTableDetail = async (id) => {
+export const queryTableDetail = async (id: string | number): Promise<TableInfo | null> => {
   const sdk = getValidSdk();
 
   try {
@@ -347,15 +404,15 @@ export const queryTableDetail = async (id) => {
       }
     };
 
-    console.log('[SDK] 查询表详情参数:', params);
-    const result = await sdk.api.queryFormData(params);
-    console.log('[SDK] 查询表详情结果:', result);
+    // console.log('[SDK] 查询表详情参数:', params);
+    const result = await sdk.api.queryFormData(params) as SdkResult;
+    // console.log('[SDK] 查询表详情结果:', result);
 
     if (result && result.data && result.data.list && result.data.list.length > 0) {
       const item = result.data.list[0];
 
       let finalSql = item['querySql'] || '';
-      let finalParamMap = {};
+      let finalParamMap: Record<string, string> = {};
 
       // 尝试解析 querySql，兼容旧格式（纯字符串）和新格式（JSON: {sql, paramMap}）
       try {
@@ -393,7 +450,7 @@ export const queryTableDetail = async (id) => {
   }
 };
 
-export const querySupplementTableDetail = async (id) => {
+export const querySupplementTableDetail = async (id: string | number): Promise<TableInfo | null> => {
   const sdk = getValidSdk();
 
   try {
@@ -404,9 +461,9 @@ export const querySupplementTableDetail = async (id) => {
       }
     };
 
-    console.log('[SDK] 查询数据补录表详情参数:', params);
-    const result = await sdk.api.queryFormData(params);
-    console.log('[SDK] 查询数据补录表详情结果:', result);
+    // console.log('[SDK] 查询数据补录表详情参数:', params);
+    const result = await sdk.api.queryFormData(params) as SdkResult;
+    // console.log('[SDK] 查询数据补录表详情结果:', result);
 
     if (result && result.data && result.data.list && result.data.list.length > 0) {
       const item = result.data.list[0];
@@ -432,7 +489,7 @@ export const querySupplementTableDetail = async (id) => {
 /**
  * 查询数据字典类别
  */
-export const queryDictionaryCategories = async () => {
+export const queryDictionaryCategories = async (): Promise<CategoryOption[]> => {
   const sdk = getValidSdk();
 
   try {
@@ -441,15 +498,14 @@ export const queryDictionaryCategories = async () => {
       buttonName: '查询码值类型',
     };
 
-    const result = await sdk.api.callButton(params);
-    // console.log('[SDK] 查询数据字典类别结果:', result);
+    const result = await sdk.api.callButton(params) as SdkResult;
 
     if (result && result.data) {
       // right 是二维数组，每个元素是 [type_id, type_name]
-      const list = result.data.map(row => ({
+      const list: CategoryOption[] = result.data.map((row: unknown[]) => ({
         value: row[0] ? String(row[0]) : '',
-        label: row[1] ? String(row[1]) : row[0]
-      })).filter(item => item.value);
+        label: row[1] ? String(row[1]) : String(row[0])
+      })).filter((item: CategoryOption) => item.value);
 
       return list;
     }
@@ -463,7 +519,7 @@ export const queryDictionaryCategories = async () => {
 /**
  * 获取模式名列表 (Source)
  */
-export const querySchemaList = async (dataSource) => {
+export const querySchemaList = async (dataSource: DataSource): Promise<string[]> => {
   const sdk = getValidSdk();
 
   try {
@@ -478,11 +534,11 @@ export const querySchemaList = async (dataSource) => {
       }
     };
 
-    const result = await sdk.api.callButton(params);
-    console.log('[SDK] 获取schema列表:', result);
+    const result = await sdk.api.callButton(params) as SdkResult;
+    // console.log('[SDK] 获取schema列表:', result);
 
     if (result && result.data && result.data.right) {
-      return result.data.right.map(row => row[0]);
+      return result.data.right.map((row: unknown[]) => row[0] as string);
     }
     return [];
   } catch (error) {
@@ -494,7 +550,7 @@ export const querySchemaList = async (dataSource) => {
 /**
  * 获取数据库表列表 (Source)
  */
-export const queryDbTableList = async (dataSource, schemaName) => {
+export const queryDbTableList = async (dataSource: DataSource, schemaName: string): Promise<DbTableInfo[]> => {
   const sdk = getValidSdk();
 
   try {
@@ -509,12 +565,12 @@ export const queryDbTableList = async (dataSource, schemaName) => {
       }
     };
 
-    const result = await sdk.api.callButton(params);
-    console.log('[SDK] 获取表列表:', result);
+    const result = await sdk.api.callButton(params) as SdkResult;
+    // console.log('[SDK] 获取表列表:', result);
 
     if (result && result.data && result.data.right) {
-      return result.data.right.map(row => ({
-        name: row[0],
+      return result.data.right.map((row: unknown[]) => ({
+        name: row[0] as string,
         comment: '',
         schema: schemaName
       }));
@@ -529,7 +585,7 @@ export const queryDbTableList = async (dataSource, schemaName) => {
 /**
  * 获取表结构 (Source)
  */
-export const queryTableStructure = async (dataSource, schemaName, tableName) => {
+export const queryTableStructure = async (dataSource: DataSource, schemaName: string, tableName: string): Promise<TableField[]> => {
   const sdk = getValidSdk();
 
   try {
@@ -547,8 +603,8 @@ export const queryTableStructure = async (dataSource, schemaName, tableName) => 
       }
     };
 
-    const result = await sdk.api.callButton(params);
-    console.log('[SDK] 获取表结构:', result);
+    const result = await sdk.api.callButton(params) as SdkResult;
+    // console.log('[SDK] 获取表结构:', result);
 
     if (result && result.data && result.data.left && result.data.right) {
       return parseSqlResultToFields(result);
@@ -563,7 +619,7 @@ export const queryTableStructure = async (dataSource, schemaName, tableName) => 
 /**
  * 构建表结构数据
  */
-const buildTableStructure = (fields) => {
+const buildTableStructure = (fields: TableField[]): SdkResult[] => {
   if (!fields || !Array.isArray(fields)) return [];
   return fields
     .map(field => ({
@@ -582,15 +638,13 @@ const buildTableStructure = (fields) => {
 
 /**
  * 保存表（新增或更新）
- * @param {Object} table - 表对象
  */
-export const saveTable = async (table) => {
+export const saveTable = async (table: TableInfo): Promise<SdkResult> => {
   const sdk = getValidSdk();
 
   try {
     // 构建表结构数据
     const tableStructureArray = buildTableStructure(table.fields);
-    // console.log('[SDK] 表结构数据:', JSON.stringify(tableStructureArray, null, 2));
 
     // 构建 querySql 的 JSON 对象
     const querySqlObj = {
@@ -599,7 +653,7 @@ export const saveTable = async (table) => {
     };
 
     // 构建 formData，前端字段 -> 后端字段
-    const formData = {
+    const formData: SdkResult = {
       '模式名': table.schema,
       '表名': table.tableName,
       '中文名': table.chineseName,
@@ -621,11 +675,7 @@ export const saveTable = async (table) => {
       formData
     };
 
-    // console.log('[SDK] 保存表参数:', params);
-    // console.log('[SDK] 表结构数组:', tableStructureArray);
-    // console.log('[SDK] 表结构json:', formData['表结构json']);
     const result = await sdk.api.callButton(params);
-    // console.log('[SDK] 保存表结果:', result);
     return result;
   } catch (error) {
     console.error('[SDK] 保存表失败:', error);
@@ -633,7 +683,7 @@ export const saveTable = async (table) => {
   }
 };
 
-export const deleteTable = async (id) => {
+export const deleteTable = async (id: string | number): Promise<SdkResult> => {
   const sdk = getValidSdk();
 
   try {
@@ -645,9 +695,9 @@ export const deleteTable = async (id) => {
       }
     };
 
-    console.log('[SDK] 删除表参数:', params);
+    // console.log('[SDK] 删除表参数:', params);
     const result = await sdk.api.callButton(params);
-    console.log('[SDK] 删除表结果:', result);
+    // console.log('[SDK] 删除表结果:', result);
     return result;
   } catch (error) {
     console.error('[SDK] 删除表失败:', error);
@@ -657,9 +707,8 @@ export const deleteTable = async (id) => {
 
 /**
  * 保存数据补录表（新增或更新）
- * @param {Object} table - 表对象
  */
-export const saveSupplementTable = async (table) => {
+export const saveSupplementTable = async (table: TableInfo): Promise<SdkResult> => {
   const sdk = getValidSdk();
 
   try {
@@ -667,7 +716,7 @@ export const saveSupplementTable = async (table) => {
     const tableStructureArray = buildTableStructure(table.fields);
 
     // 构建 formData，前端字段 -> 后端字段
-    const formData = {
+    const formData: SdkResult = {
       '模式名': table.schema,
       '表名': table.tableName,
       '中文名': table.chineseName,
@@ -687,9 +736,9 @@ export const saveSupplementTable = async (table) => {
       formData
     };
 
-    console.log('[SDK] 保存数据补录表参数:', params);
+    // console.log('[SDK] 保存数据补录表参数:', params);
     const result = await sdk.api.callButton(params);
-    console.log('[SDK] 保存数据补录表结果:', result);
+    // console.log('[SDK] 保存数据补录表结果:', result);
     return result;
   } catch (error) {
     console.error('[SDK] 保存数据补录表失败:', error);
@@ -699,11 +748,8 @@ export const saveSupplementTable = async (table) => {
 
 /**
  * 获取 SQL 结构
- * @param {string} dstype - 数据库类型
- * @param {string} dsname - 数据源名称
- * @param {string} sql - SQL 语句
  */
-export const getSqlStruct = async (dstype, dsname, sql) => {
+export const getSqlStruct = async (dstype: string, dsname: string, sql: string): Promise<TableField[]> => {
   const sdk = getValidSdk();
 
   try {
@@ -717,9 +763,9 @@ export const getSqlStruct = async (dstype, dsname, sql) => {
       }
     };
 
-    console.log('[SDK] 获取SQL结构参数:', params);
-    const result = await sdk.api.callButton(params);
-    console.log('[SDK] 获取SQL结构结果:', result);
+    // console.log('[SDK] 获取SQL结构参数:', params);
+    const result = await sdk.api.callButton(params) as SdkResult;
+    // console.log('[SDK] 获取SQL结构结果:', result);
 
     if (result && result.data && result.data.left && result.data.right) {
       return parseSqlResultToFields(result);
@@ -731,7 +777,7 @@ export const getSqlStruct = async (dstype, dsname, sql) => {
   }
 };
 
-export const importTableData = async (params) => {
+export const importTableData = async (params: { tableCode: string | number; fileContent: string }): Promise<SdkResult> => {
   const sdk = getValidSdk();
 
   try {
@@ -742,22 +788,22 @@ export const importTableData = async (params) => {
       buttonParam: params,
     }
 
-    console.log('[SDK] 导入数据参数:', payload)
+    // console.log('[SDK] 导入数据参数:', payload)
     const response = await sdk.request(url, {
       method: 'POST',
       body: JSON.stringify(payload),
     })
 
     const result = await response.json()
-    console.log('[SDK] 导入数据结果:', result)
+    // console.log('[SDK] 导入数据结果:', result)
     return result
   } catch (error) {
-    console.error('[SDK] 导入数据失败:', error.message)
+    console.error('[SDK] 导入数据失败:', (error as Error).message)
     throw error
   }
 };
 
-export const exportTableTemplate = async (params) => {
+export const exportTableTemplate = async (params: { tableCode: string | number }): Promise<Blob | SdkResult> => {
   const sdk = getValidSdk();
 
   try {
@@ -768,7 +814,7 @@ export const exportTableTemplate = async (params) => {
       buttonParam: params,
     }
 
-    console.log('[SDK] 导出模板参数:', payload)
+    // console.log('[SDK] 导出模板参数:', payload)
     const response = await sdk.request(url, {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -782,10 +828,10 @@ export const exportTableTemplate = async (params) => {
     }
 
     const blob = await response.blob()
-    console.log('[SDK] 导出模板成功, size:', blob.size, 'type:', blob.type)
+    // console.log('[SDK] 导出模板成功, size:', blob.size, 'type:', blob.type)
     return blob
   } catch (error) {
-    console.error('[SDK] 导出模板失败:', error.message)
+    console.error('[SDK] 导出模板失败:', (error as Error).message)
     throw error
   }
 };

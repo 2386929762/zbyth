@@ -1,29 +1,42 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { themePresets, applyThemeColors } from '@/lib/themePresets'
+import { themePresets, applyThemeColors, type ThemePreset } from '@/lib/themePresets'
 
-const initialState = {
+interface ThemeProviderState {
+    mode: string
+    themePreset: ThemePreset
+    setMode: (mode: string) => void
+    setThemePreset: (presetId: string) => void
+}
+
+const initialState: ThemeProviderState = {
     mode: 'system',
     themePreset: themePresets[0],
     setMode: () => null,
     setThemePreset: () => null,
 }
 
-const ThemeProviderContext = createContext(initialState)
+const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
 
 const STORAGE_KEY_MODE = 'theme-mode'
 const STORAGE_KEY_PRESET = 'theme-preset'
+
+interface ThemeProviderProps {
+    children: React.ReactNode
+    defaultMode?: string
+    defaultTheme?: string
+}
 
 export function ThemeProvider({
     children,
     defaultMode = 'light',
     defaultTheme = 'forest',
     ...props
-}) {
+}: ThemeProviderProps) {
     const [mode, setMode] = useState(
         () => localStorage.getItem(STORAGE_KEY_MODE) || defaultMode
     )
 
-    const [themePreset, setThemePresetState] = useState(
+    const [themePreset, setThemePresetState] = useState<ThemePreset>(
         () => {
             const savedId = localStorage.getItem(STORAGE_KEY_PRESET) || localStorage.getItem('theme-color')
             if (savedId) {
@@ -33,7 +46,7 @@ export function ThemeProvider({
         }
     )
 
-    const setThemePreset = (presetId) => {
+    const setThemePreset = (presetId: string) => {
         const preset = themePresets.find(p => p.id === presetId) || themePresets[0]
         setThemePresetState(preset)
         localStorage.setItem(STORAGE_KEY_PRESET, presetId)
@@ -61,7 +74,7 @@ export function ThemeProvider({
 
     // 监听 localStorage 变化 (用于同源窗口/iframe间的自动同步)
     useEffect(() => {
-        const handleStorage = (e) => {
+        const handleStorage = (e: StorageEvent) => {
             if (e.key === STORAGE_KEY_MODE && e.newValue) {
                 setMode(e.newValue)
             }
@@ -77,10 +90,10 @@ export function ThemeProvider({
         return () => window.removeEventListener('storage', handleStorage)
     }, [])
 
-    const value = {
+    const value: ThemeProviderState = {
         mode,
         themePreset,
-        setMode: (newMode) => {
+        setMode: (newMode: string) => {
             localStorage.setItem(STORAGE_KEY_MODE, newMode)
             setMode(newMode)
         },
