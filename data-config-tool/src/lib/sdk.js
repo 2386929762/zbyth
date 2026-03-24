@@ -11,6 +11,13 @@ const getSdk = () => {
   return null;
 };
 
+const getValidSdk = () => {
+  var sdk = getSdk();
+  if (!sdk) 
+    throw new Error('SDK 不可用');
+  return sdk;
+};
+
 // 类型标准化映射
 const TYPE_MAP = {
   文本: ['CHAR', 'NCHAR', 'VARCHAR', 'VARCHAR2', 'NVARCHAR', 'NVARCHAR2', 'TEXT', 'CLOB', 'STRING', 'LONGTEXT', 'MEDIUMTEXT'],
@@ -22,18 +29,8 @@ export const PANEL_CODES = {
   DATA_SOURCE: 'IML_00005',
   TABLE: 'IML_00003',
   SQL_TOOL: 'IML_00009',
-  DICTIONARY: 'IML_00011'
-};
-
-const defaultConfig = {
-  dataSourcePanelCode: PANEL_CODES.DATA_SOURCE,
-  tablePanelCode: PANEL_CODES.TABLE,
-};
-
-// 获取配置
-const getConfig = () => {
-  const globalConfig = window.SDK_CONFIG || {};
-  return { ...defaultConfig, ...globalConfig };
+  DICTIONARY: 'IML_00011',
+  SUPPLEMENT_TABLE: 'IML_00028'
 };
 
 export const normalizeFieldCategory = (fieldType) => {
@@ -57,22 +54,18 @@ export const isSdkAvailable = () => {
   return !!getSdk() && !window.sdkLoadFailed;
 };
 
+
 // ==================== 数据源管理 API ====================
 
 /**
  * 查询数据源列表
  */
 export const queryDataSourceList = async () => {
-  const sdk = getSdk();
-  if (!sdk) {
-    console.warn('[SDK] SDK 不可用，返回空列表');
-    return { list: [], totalSize: 0 };
-  }
+  const sdk = getValidSdk();
 
   try {
-    const config = getConfig();
     const params = {
-      panelCode: config.dataSourcePanelCode,
+      panelCode: PANEL_CODES.DATA_SOURCE,
       buttonName: 'queryDataSourceList'
     };
 
@@ -103,15 +96,9 @@ export const queryDataSourceList = async () => {
 };
 
 export const saveDataSource = async (dataSource) => {
-  const sdk = getSdk();
-  if (!sdk) {
-    console.warn('[SDK] SDK 不可用，无法保存');
-    throw new Error('SDK 不可用');
-  }
+  const sdk = getValidSdk();
 
   try {
-    const config = getConfig();
-
     // 构建 formData，前端字段 -> 后端字段
     const formData = {
       '数据源名称': dataSource.name,
@@ -128,7 +115,7 @@ export const saveDataSource = async (dataSource) => {
     }
 
     const params = {
-      panelCode: config.dataSourcePanelCode,
+      panelCode: PANEL_CODES.DATA_SOURCE,
       buttonName: '保存数据源',
       formData
     };
@@ -144,16 +131,11 @@ export const saveDataSource = async (dataSource) => {
 };
 
 export const deleteDataSource = async (id) => {
-  const sdk = getSdk();
-  if (!sdk) {
-    console.warn('[SDK] SDK 不可用，无法删除');
-    throw new Error('SDK 不可用');
-  }
+  const sdk = getValidSdk();
 
   try {
-    const config = getConfig();
     const params = {
-      panelCode: config.dataSourcePanelCode,
+      panelCode: PANEL_CODES.DATA_SOURCE,
       buttonName: '删除数据源',
       buttonParam: {
         rowCodes: [id]
@@ -173,21 +155,16 @@ export const deleteDataSource = async (id) => {
 // ==================== 表管理 API ====================
 
 export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, pageSize = 100) => {
-  const sdk = getSdk();
-  if (!sdk) {
-    console.warn('[SDK] SDK 不可用，返回空列表');
-    return { list: [], totalSize: 0 };
-  }
+  const sdk = getValidSdk();
 
   try {
-    const config = getConfig();
     const condition = {};
     if (dsCode) {
       condition['dsCode'] = dsCode;
     }
 
     const params = {
-      panelCode: config.tablePanelCode,
+      panelCode: PANEL_CODES.TABLE,
       condition,
       pageNo,
       pageSize,
@@ -309,16 +286,11 @@ const parseSqlResultToFields = (result) => {
 };
 
 export const queryTableDetail = async (id) => {
-  const sdk = getSdk();
-  if (!sdk) {
-    console.warn('[SDK] SDK 不可用，无法查询详情');
-    throw new Error('SDK 不可用');
-  }
+  const sdk = getValidSdk();
 
   try {
-    const config = getConfig();
     const params = {
-      panelCode: config.tablePanelCode,
+      panelCode: PANEL_CODES.TABLE,
       condition: {
         code: id
       }
@@ -344,9 +316,9 @@ export const queryTableDetail = async (id) => {
             finalParamMap = parsed.paramMap || {};
           }
         }
-      } catch (e) {
+      } catch {
         // 解析失败，说明是旧格式的纯 SQL 字符串，保持原值
-        // console.log('Legacy SQL format detected');
+        console.log('Legacy SQL format detected');
       }
 
       // 转换数据格式：后端字段 -> 前端字段
@@ -374,11 +346,7 @@ export const queryTableDetail = async (id) => {
  * 查询数据字典类别
  */
 export const queryDictionaryCategories = async () => {
-  const sdk = getSdk();
-  if (!sdk) {
-    console.warn('[SDK] SDK 不可用，无法查询数据字典类别');
-    return [];
-  }
+  const sdk = getValidSdk();
 
   try {
     const params = {
@@ -409,8 +377,7 @@ export const queryDictionaryCategories = async () => {
  * 获取模式名列表 (Source)
  */
 export const querySchemaList = async (dataSource) => {
-  const sdk = getSdk();
-  if (!sdk) return [];
+  const sdk = getValidSdk();
 
   try {
     const params = {
@@ -441,8 +408,7 @@ export const querySchemaList = async (dataSource) => {
  * 获取数据库表列表 (Source)
  */
 export const queryDbTableList = async (dataSource, schemaName) => {
-  const sdk = getSdk();
-  if (!sdk) return [];
+  const sdk = getValidSdk();
 
   try {
     const params = {
@@ -477,8 +443,7 @@ export const queryDbTableList = async (dataSource, schemaName) => {
  * 获取表结构 (Source)
  */
 export const queryTableStructure = async (dataSource, schemaName, tableName) => {
-  const sdk = getSdk();
-  if (!sdk) return null;
+  const sdk = getValidSdk();
 
   try {
     const params = {
@@ -533,18 +498,12 @@ const buildTableStructure = (fields) => {
  * @param {Object} table - 表对象
  */
 export const saveTable = async (table) => {
-  const sdk = getSdk();
-  if (!sdk) {
-    console.warn('[SDK] SDK 不可用，无法保存');
-    throw new Error('SDK 不可用');
-  }
+  const sdk = getValidSdk();
 
   try {
-    const config = getConfig();
-
     // 构建表结构数据
     const tableStructureArray = buildTableStructure(table.fields);
-    console.log('[SDK] 表结构数据:', JSON.stringify(tableStructureArray, null, 2));
+    // console.log('[SDK] 表结构数据:', JSON.stringify(tableStructureArray, null, 2));
 
     // 构建 querySql 的 JSON 对象
     const querySqlObj = {
@@ -570,7 +529,7 @@ export const saveTable = async (table) => {
     }
 
     const params = {
-      panelCode: config.tablePanelCode,
+      panelCode: PANEL_CODES.TABLE,
       buttonName: '保存',
       formData
     };
@@ -588,16 +547,11 @@ export const saveTable = async (table) => {
 };
 
 export const deleteTable = async (id) => {
-  const sdk = getSdk();
-  if (!sdk) {
-    console.warn('[SDK] SDK 不可用，无法删除');
-    throw new Error('SDK 不可用');
-  }
+  const sdk = getValidSdk();
 
   try {
-    const config = getConfig();
     const params = {
-      panelCode: config.tablePanelCode,
+      panelCode: PANEL_CODES.TABLE,
       buttonName: '删除',
       buttonParam: {
         rowCodes: [id]
@@ -615,14 +569,55 @@ export const deleteTable = async (id) => {
 };
 
 /**
+ * 保存数据补录表（新增或更新）
+ * @param {Object} table - 表对象
+ */
+export const saveSupplementTable = async (table) => {
+  const sdk = getValidSdk();
+
+  try {
+    // 构建表结构数据
+    const tableStructureArray = buildTableStructure(table.fields);
+
+    // 构建 formData，前端字段 -> 后端字段
+    const formData = {
+      '模式名': table.schema,
+      '表名': table.tableName,
+      '中文名': table.chineseName,
+      '描述': table.description,
+      'dsCode': table.dsCode || '',
+      '表结构json': JSON.stringify(tableStructureArray)
+    };
+
+    // 如果有 id，说明是更新操作
+    if (table.id) {
+      formData['编号'] = table.id;
+    }
+
+    const params = {
+      panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
+      buttonName: 'designer_save',
+      formData
+    };
+
+    console.log('[SDK] 保存数据补录表参数:', params);
+    const result = await sdk.api.callButton(params);
+    console.log('[SDK] 保存数据补录表结果:', result);
+    return result;
+  } catch (error) {
+    console.error('[SDK] 保存数据补录表失败:', error);
+    throw error;
+  }
+};
+
+/**
  * 获取 SQL 结构
  * @param {string} dstype - 数据库类型
  * @param {string} dsname - 数据源名称
  * @param {string} sql - SQL 语句
  */
 export const getSqlStruct = async (dstype, dsname, sql) => {
-  const sdk = getSdk();
-  if (!sdk) return null;
+  const sdk = getValidSdk();
 
   try {
     const params = {
@@ -657,6 +652,7 @@ export default {
   queryTableList,
   saveTable,
   deleteTable,
+  saveSupplementTable,
   queryDictionaryCategories,
   querySchemaList,
   queryDbTableList,

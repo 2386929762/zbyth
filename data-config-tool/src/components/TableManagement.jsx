@@ -38,6 +38,7 @@ import {
   queryTableDetail,
   saveTable,
   deleteTable,
+  saveSupplementTable,
   queryDictionaryCategories,
   querySchemaList,
   queryDbTableList,
@@ -848,22 +849,37 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
       return
     }
 
-    const hasPrimaryKey = selectedFields.some(f => f.primaryKey)
-    if (!hasPrimaryKey) {
-      toast({ variant: "destructive", title: "校验失败", description: "请选择一个字段作为主键" })
+    // 校验：除了固定的 operator 和 data_date 外，必须有其他字段
+    const nonDefaultFields = selectedFields.filter(f => !f.isDefault)
+    if (nonDefaultFields.length === 0) {
+      toast({ variant: "destructive", title: "校验失败", description: "除了固定的'operator'和'data_date'外，必须要有其他字段" })
       return
     }
 
+    // 校验：所有字段必须有字段名
     const emptyFieldName = selectedFields.find(f => !f.name || !f.name.trim())
     if (emptyFieldName) {
       toast({ variant: "destructive", title: "校验失败", description: "存在字段名为空的字段，请填写完整后再保存" })
       return
     }
 
+    // 校验：日期类型字段必须填写日期格式
+    const invalidDateField = selectedFields.find(f => f.type === '日期' && (!f.dateFormat || !f.dateFormat.trim()))
+    if (invalidDateField) {
+      toast({ variant: "destructive", title: "校验失败", description: `字段"${invalidDateField.name}"类型为"日期"，必须填写日期格式` })
+      return
+    }
+
+    // 校验：必须有主键字段
+    const hasPrimaryKey = selectedFields.some(f => f.primaryKey)
+    if (!hasPrimaryKey) {
+      toast({ variant: "destructive", title: "校验失败", description: "字段列表中必须要有主键字段" })
+      return
+    }
+
     setSupplementSaving(true)
     try {
       const newTable = {
-        id: editingSupplementTable.id || Date.now(),
         tableName: editingSupplementTable.tableName,
         chineseName: editingSupplementTable.chineseName,
         description: editingSupplementTable.description,
@@ -872,15 +888,23 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
         fields: selectedFields
       }
 
-      if (editingSupplementTable.id) {
-        setSupplementTables(supplementTables.map(t =>
-          t.id === editingSupplementTable.id ? newTable : t
-        ))
+      // 调用 SDK 保存
+      if (isSdkAvailable()) {
+        await saveSupplementTable(newTable)
+        // 重新加载列表
+        toast({ title: "保存成功", description: "数据补录表已保存" })
       } else {
-        setSupplementTables([...supplementTables, newTable])
+        // SDK 不可用时使用本地状态
+        if (editingSupplementTable.id) {
+          setSupplementTables(supplementTables.map(t =>
+            t.id === editingSupplementTable.id ? newTable : t
+          ))
+        } else {
+          setSupplementTables([...supplementTables, newTable])
+        }
+        toast({ title: "保存成功", description: "数据补录表已保存" })
       }
 
-      toast({ title: "保存成功", description: "数据补录表已保存" })
       setTimeout(() => {
         setIsAddSupplementDialogOpen(false)
       }, 200)
@@ -1766,8 +1790,18 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                     <Button
                       size="sm"
                       onClick={() => {
+                        // 生成默认字段名：C1, C2, C3...
+                        const existingFields = editingSupplementTable?.fields || []
+                        const existingNames = new Set(existingFields.map(f => f.name))
+                        let fieldNum = 1
+                        let defaultName = `C${fieldNum}`
+                        while (existingNames.has(defaultName)) {
+                          fieldNum++
+                          defaultName = `C${fieldNum}`
+                        }
+
                         const newField = {
-                          name: '',
+                          name: defaultName,
                           type: '文本',
                           comment: '',
                           fieldType: '属性',
