@@ -797,12 +797,38 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
     }
     setSupplementSelectedSchema('')
     setSupplementFormData({ chineseName: '', description: '' })
+    const defaultFields = [
+      {
+        name: 'operator',
+        type: '文本',
+        comment: '操作员',
+        fieldType: '属性',
+        category: '',
+        dateFormat: '',
+        primaryKey: false,
+        sortDirection: 'asc',
+        selected: false,
+        isDefault: true
+      },
+      {
+        name: 'data_date',
+        type: '日期',
+        comment: '数据日期',
+        fieldType: '属性',
+        category: '',
+        dateFormat: 'yyyyMMdd',
+        primaryKey: false,
+        sortDirection: 'asc',
+        selected: false,
+        isDefault: true
+      }
+    ]
     setEditingSupplementTable({
       tableName: '',
       chineseName: '',
       description: '',
       schema: '',
-      fields: [],
+      fields: defaultFields,
       dsCode: selectedSource.id
     })
     setSupplementLoadingDetail(false)
@@ -1455,7 +1481,6 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                                       setEditingTable({ ...editingTable, fields: newFields })
                                     }}
                                     className="h-8 w-32"
-                                    placeholder="yyyyMMdd"
                                     disabled={field.type !== '日期'}
                                   />
                                 </TableCell>
@@ -1801,34 +1826,38 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                           className={`cursor-pointer hover:bg-muted/50 ${field.selected ? 'bg-muted' : ''}`}
                         >
                           <TableCell className="p-2 text-center">
-                            <Checkbox
-                              checked={field.primaryKey || false}
-                              onCheckedChange={() => {
-                                const newFields = [...(editingSupplementTable?.fields || [])]
-                                newFields[index] = { ...newFields[index], primaryKey: !newFields[index].primaryKey }
-                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            />
+                            {!field.isDefault && (
+                              <Checkbox
+                                checked={field.primaryKey || false}
+                                onCheckedChange={() => {
+                                  const newFields = [...(editingSupplementTable?.fields || [])]
+                                  newFields[index] = { ...newFields[index], primaryKey: !newFields[index].primaryKey }
+                                  setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            )}
                           </TableCell>
                           <TableCell className="p-2">
-                            <Select
-                              value={field.sortDirection || 'asc'}
-                              onValueChange={(value) => {
-                                const newFields = [...(editingSupplementTable?.fields || [])]
-                                newFields[index] = { ...newFields[index], sortDirection: value }
-                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
-                              }}
-                              disabled={!field.primaryKey}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue placeholder="无" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="asc">正序</SelectItem>
-                                <SelectItem value="desc">倒序</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            {!field.isDefault && (
+                              <Select
+                                value={field.sortDirection || 'asc'}
+                                onValueChange={(value) => {
+                                  const newFields = [...(editingSupplementTable?.fields || [])]
+                                  newFields[index] = { ...newFields[index], sortDirection: value }
+                                  setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                                }}
+                                disabled={!field.primaryKey}
+                              >
+                                <SelectTrigger className="h-8">
+                                  <SelectValue placeholder="无" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="asc">正序</SelectItem>
+                                  <SelectItem value="desc">倒序</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
                           </TableCell>
                           <TableCell className="font-mono p-2">
                             <Input
@@ -1840,6 +1869,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                               }}
                               className="h-8"
                               placeholder="字段名"
+                              readOnly={field.isDefault}
                             />
                           </TableCell>
                           <TableCell className="p-2">
@@ -1850,6 +1880,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                                 newFields[index] = { ...newFields[index], type: value, dateFormat: value === '日期' ? (field.dateFormat || 'yyyyMMdd') : '' }
                                 setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
                               }}
+                              disabled={field.isDefault}
                             >
                               <SelectTrigger className="h-8">
                                 <SelectValue />
@@ -1872,8 +1903,8 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                                 setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
                               }}
                               className="h-8"
-                              placeholder="yyyyMMdd"
-                              disabled={field.type !== '日期'}
+                              disabled={field.type !== '日期' || field.isDefault}
+                              readOnly={field.isDefault}
                             />
                           </TableCell>
                           <TableCell className="p-2">
@@ -1886,22 +1917,25 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                               }}
                               className="h-8"
                               placeholder="字段中文名"
+                              readOnly={field.isDefault}
                             />
                           </TableCell>
                           <TableCell className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 text-destructive p-0"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const newFields = [...(editingSupplementTable?.fields || [])]
-                                newFields.splice(index, 1)
-                                setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {!field.isDefault && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 text-destructive p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const newFields = [...(editingSupplementTable?.fields || [])]
+                                  newFields.splice(index, 1)
+                                  setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
