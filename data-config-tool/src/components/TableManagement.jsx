@@ -1,6 +1,6 @@
 import * as Icons from 'lucide-react'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Settings, Search, ChevronRight, Trash2, RefreshCw, ArrowUp, ArrowDown, Play } from 'lucide-react'
+import { Plus, Settings, Search, ChevronRight, Trash2, RefreshCw, ArrowUp, ArrowDown, Play, Upload, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PaginationBar } from '@/components/PaginationBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,9 +33,17 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
   isSdkAvailable,
   queryTableList,
   queryTableDetail,
+  querySupplementTableList,
+  querySupplementTableDetail,
   saveTable,
   deleteTable,
   saveSupplementTable,
@@ -45,7 +53,9 @@ import {
   queryTableStructure,
   getSqlStruct,
   normalizeDbType,
-  normalizeFieldCategory
+  normalizeFieldCategory,
+  importTableData,
+  exportTableTemplate
 } from '@/lib/sdk'
 import { useToast } from "@/hooks/use-toast"
 
@@ -101,6 +111,16 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
   const [isAddSupplementDialogOpen, setIsAddSupplementDialogOpen] = useState(false)
   const [editingSupplementTable, setEditingSupplementTable] = useState(null)
   const [supplementSaving, setSupplementSaving] = useState(false)
+  const [supplementTableReadOnly, setSupplementTableReadOnly] = useState(false)
+
+  // 导入对话框相关状态
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [importDataDate, setImportDataDate] = useState('')
+  const [importFile, setImportFile] = useState(null)
+  const [importTableId, setImportTableId] = useState(null)
+  const [importCurrentPage, setImportCurrentPage] = useState(1)
+  const [importPageSize, setImportPageSize] = useState(50)
+  const [importTotalItems, setImportTotalItems] = useState(0)
 
   // 分页状态（添加表 dialog 内的选源表列表）
   const [dialogPage, setDialogPage] = useState(1)
@@ -140,7 +160,6 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
   const lastLoadedDialogSchemaRef = useRef(null)
 
   // 加载表列表
-  // 加载表列表
   const loadTables = async () => {
     if (!selectedSource) return
 
@@ -162,6 +181,37 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
       }
     } catch (error) {
       console.error('[TableManagement] 加载表列表失败:', error)
+      toast({
+        variant: "destructive",
+        title: "加载失败",
+        description: error.message
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 加载数据补录表列表
+  const loadSupplementTables = async () => {
+    if (!selectedSource) return
+
+    setLoading(true)
+    try {
+      if (isSdkAvailable()) {
+        // 使用 dsCode 和 keyword 进行过滤查询
+        const keyword = supplementSearchInput.trim()
+        console.log('[TableManagement] 补录表搜索关键词:', keyword, '是否为空:', !keyword)
+        const result = await querySupplementTableList(
+          selectedSource.id,
+          keyword || null,
+          supplementCurrentPage,
+          supplementPageSize
+        )
+        setSupplementTables(result.list || [])
+        console.log('[TableManagement] 从 SDK 加载数据补录表列表:', result.list)
+      }
+    } catch (error) {
+      console.error('[TableManagement] 加载数据补录表列表失败:', error)
       toast({
         variant: "destructive",
         title: "加载失败",
@@ -231,6 +281,21 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, pageSize])
+
+  // 用于跳过数据源切换时由分页 effect 触发的重复加载（补录表）
+  const skipSupplementPaginationEffectRef = useRef(false)
+
+  // 当补录表分页状态变化时重新加载数据
+  useEffect(() => {
+    if (skipSupplementPaginationEffectRef.current) {
+      skipSupplementPaginationEffectRef.current = false
+      return
+    }
+    if (selectedSource && window.sdkLoggedIn && contentTab === 'supplement') {
+      loadSupplementTables()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplementCurrentPage, supplementPageSize, contentTab])
 
   // 从 SDK 获取模式名列表
   const loadSchemas = async () => {
@@ -781,7 +846,11 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
   // 处理搜索 - 只在按下 Enter 时触发
   const handleSearchKeyDown = (e) => {
     if (e.key === 'Enter') {
-      loadTables()
+      if (contentTab === 'dataset') {
+        loadTables()
+      } else {
+        loadSupplementTables()
+      }
     }
   }
 
@@ -888,19 +957,25 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
         fields: selectedFields
       }
 
+      // 如果有 id，说明是更新操作
+      if (editingSupplementTable.id) {
+        newTable.id = editingSupplementTable.id
+      }
+
       // 调用 SDK 保存
       if (isSdkAvailable()) {
         await saveSupplementTable(newTable)
         // 重新加载列表
+        await loadSupplementTables()
         toast({ title: "保存成功", description: "数据补录表已保存" })
       } else {
         // SDK 不可用时使用本地状态
         if (editingSupplementTable.id) {
           setSupplementTables(supplementTables.map(t =>
-            t.id === editingSupplementTable.id ? newTable : t
+            t.id === editingSupplementTable.id ? { ...newTable, id: editingSupplementTable.id } : t
           ))
         } else {
-          setSupplementTables([...supplementTables, newTable])
+          setSupplementTables([...supplementTables, { ...newTable, id: Date.now() }])
         }
         toast({ title: "保存成功", description: "数据补录表已保存" })
       }
@@ -913,6 +988,119 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
       toast({
         variant: "destructive",
         title: "保存失败",
+        description: error.message
+      })
+    } finally {
+      setSupplementSaving(false)
+    }
+  }
+
+  const handleOpenImportDialog = (tableId) => {
+    setImportTableId(tableId)
+    setImportDataDate('')
+    setImportFile(null)
+    setImportCurrentPage(1)
+    setIsImportDialogOpen(true)
+  }
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setImportFile(file)
+    }
+  }
+
+  const handleImportData = async () => {
+    if (!importFile) {
+      toast({
+        variant: "destructive",
+        title: "校验失败",
+        description: "请选择要导入的文件"
+      })
+      return
+    }
+
+    try {
+      setSupplementSaving(true)
+      const reader = new FileReader()
+      reader.onload = async (event) => {
+        const arrayBuffer = event.target?.result
+        if (!arrayBuffer) return
+
+        const bytes = new Uint8Array(arrayBuffer)
+        let binary = ''
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i])
+        }
+        const base64String = btoa(binary)
+
+        try {
+          const result = await importTableData({
+            tableCode: importTableId,
+            fileContent: base64String
+          })
+          console.log('[TableManagement] 导入数据结果:', result)
+          toast({
+            title: "导入成功",
+            description: "数据已成功导入"
+          })
+          setIsImportDialogOpen(false)
+        } catch (error) {
+          console.error('[TableManagement] 导入数据失败:', error)
+          toast({
+            variant: "destructive",
+            title: "导入失败",
+            description: error.message
+          })
+        } finally {
+          setSupplementSaving(false)
+        }
+      }
+      reader.readAsArrayBuffer(importFile)
+    } catch (error) {
+      console.error('[TableManagement] 处理文件失败:', error)
+      toast({
+        variant: "destructive",
+        title: "处理失败",
+        description: error.message
+      })
+      setSupplementSaving(false)
+    }
+  }
+
+  const handleExportTableTemplate = async (tableId) => {
+    try {
+      setSupplementSaving(true)
+      const result = await exportTableTemplate({
+        tableCode: tableId
+      })
+
+      if (result instanceof Blob) {
+        const url = window.URL.createObjectURL(result)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `template_${tableId}_${Date.now()}.xlsx`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+
+        toast({
+          title: "导出成功",
+          description: "模板已下载"
+        })
+      } else {
+        toast({
+          variant: "destructive",
+          title: "导出失败",
+          description: result?.message || "导出失败"
+        })
+      }
+    } catch (error) {
+      console.error('[TableManagement] 导出模板失败:', error)
+      toast({
+        variant: "destructive",
+        title: "导出失败",
         description: error.message
       })
     } finally {
@@ -961,7 +1149,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
               />
             </div>
             {/* 刷新按钮 */}
-            <Button variant="outline" size="sm" onClick={loadTables} disabled={loading}>
+            <Button variant="outline" size="sm" onClick={contentTab === 'dataset' ? loadTables : loadSupplementTables} disabled={loading}>
               <Icons.RotateCw className="w-4 h-4 mr-2" />
               刷新
             </Button>
@@ -1039,38 +1227,168 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                     <TableHead className="py-2">表名</TableHead>
                     <TableHead className="py-2">中文名</TableHead>
                     <TableHead className="py-2">描述</TableHead>
-                    <TableHead className="w-[100px] py-2">操作</TableHead>
+                    <TableHead className="py-2 w-[120px] text-center">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {currentSupplementTables.map((table) => (
                     <TableRow
                       key={table.id || table.tableName}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => {
-                        setEditingSupplementTable(table)
-                        setTimeout(() => setIsAddSupplementDialogOpen(true), 0)
-                      }}
+                      className="hover:bg-muted/50"
                     >
-                      <TableCell className="text-sm text-muted-foreground py-2">{table.schema}</TableCell>
-                      <TableCell className="font-medium py-2">{table.tableName}</TableCell>
-                      <TableCell className="py-2">{table.chineseName}</TableCell>
-                      <TableCell className="text-muted-foreground py-2">{table.description}</TableCell>
-                      <TableCell className="py-2">
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (confirm('确定删除该表吗？')) {
-                                setSupplementTables(supplementTables.filter(t => t.id !== table.id))
-                                toast({ title: "删除成功", description: "表已删除" })
+                      <TableCell 
+                        className="text-sm text-muted-foreground py-2 cursor-pointer"
+                        onClick={async () => {
+                          setSupplementTableReadOnly(true)
+                          if (isSdkAvailable() && table.id) {
+                            try {
+                              const detail = await querySupplementTableDetail(table.id)
+                              if (detail) {
+                                setEditingSupplementTable({
+                                  ...detail,
+                                  fields: (detail.fields || []).map(field => ({
+                                    ...withFieldDefaults(field),
+                                    isDefault: field.name === 'operator' || field.name === 'data_date'
+                                  }))
+                                })
                               }
-                            }}
+                            } catch (error) {
+                              console.error('[TableManagement] 加载数据补录表详情失败:', error)
+                              toast({
+                                variant: "destructive",
+                                title: "加载失败",
+                                description: error.message
+                              })
+                              return
+                            }
+                          } else {
+                            setEditingSupplementTable(table)
+                          }
+                          setTimeout(() => setIsAddSupplementDialogOpen(true), 0)
+                        }}
+                      >
+                        {table.schema}
+                      </TableCell>
+                      <TableCell 
+                        className="font-medium py-2 cursor-pointer"
+                        onClick={async () => {
+                          setSupplementTableReadOnly(true)
+                          if (isSdkAvailable() && table.id) {
+                            try {
+                              const detail = await querySupplementTableDetail(table.id)
+                              if (detail) {
+                                setEditingSupplementTable({
+                                  ...detail,
+                                  fields: (detail.fields || []).map(field => ({
+                                    ...withFieldDefaults(field),
+                                    isDefault: field.name === 'operator' || field.name === 'data_date'
+                                  }))
+                                })
+                              }
+                            } catch (error) {
+                              console.error('[TableManagement] 加载数据补录表详情失败:', error)
+                              toast({
+                                variant: "destructive",
+                                title: "加载失败",
+                                description: error.message
+                              })
+                              return
+                            }
+                          } else {
+                            setEditingSupplementTable(table)
+                          }
+                          setTimeout(() => setIsAddSupplementDialogOpen(true), 0)
+                        }}
+                      >
+                        {table.tableName}
+                      </TableCell>
+                      <TableCell 
+                        className="py-2 cursor-pointer"
+                        onClick={async () => {
+                          setSupplementTableReadOnly(true)
+                          if (isSdkAvailable() && table.id) {
+                            try {
+                              const detail = await querySupplementTableDetail(table.id)
+                              if (detail) {
+                                setEditingSupplementTable({
+                                  ...detail,
+                                  fields: (detail.fields || []).map(field => ({
+                                    ...withFieldDefaults(field),
+                                    isDefault: field.name === 'operator' || field.name === 'data_date'
+                                  }))
+                                })
+                              }
+                            } catch (error) {
+                              console.error('[TableManagement] 加载数据补录表详情失败:', error)
+                              toast({
+                                variant: "destructive",
+                                title: "加载失败",
+                                description: error.message
+                              })
+                              return
+                            }
+                          } else {
+                            setEditingSupplementTable(table)
+                          }
+                          setTimeout(() => setIsAddSupplementDialogOpen(true), 0)
+                        }}
+                      >
+                        {table.chineseName}
+                      </TableCell>
+                      <TableCell 
+                        className="text-muted-foreground py-2 cursor-pointer"
+                        onClick={async () => {
+                          setSupplementTableReadOnly(true)
+                          if (isSdkAvailable() && table.id) {
+                            try {
+                              const detail = await querySupplementTableDetail(table.id)
+                              if (detail) {
+                                setEditingSupplementTable({
+                                  ...detail,
+                                  fields: (detail.fields || []).map(field => ({
+                                    ...withFieldDefaults(field),
+                                    isDefault: field.name === 'operator' || field.name === 'data_date'
+                                  }))
+                                })
+                              }
+                            } catch (error) {
+                              console.error('[TableManagement] 加载数据补录表详情失败:', error)
+                              toast({
+                                variant: "destructive",
+                                title: "加载失败",
+                                description: error.message
+                              })
+                              return
+                            }
+                          } else {
+                            setEditingSupplementTable(table)
+                          }
+                          setTimeout(() => setIsAddSupplementDialogOpen(true), 0)
+                        }}
+                      >
+                        {table.description}
+                      </TableCell>
+                      <TableCell className="py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleOpenImportDialog(table.id)}
+                            disabled={supplementSaving}
+                            title="导入数据"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Upload className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleExportTableTemplate(table.id)}
+                            disabled={supplementSaving}
+                            title="导出数据模板"
+                          >
+                            <Download className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -1665,30 +1983,36 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
             <div className="flex-1 flex flex-col min-h-0 space-y-4">
               {/* 第一行：模式名、表名、中文名 */}
               <div className="grid grid-cols-3 gap-4">
-                {/* 模式名下拉框 */}
+                {/* 模式名 */}
                 <div className="flex items-center gap-2">
                   <Label className="w-14 text-right">模式名</Label>
-                  <Select
-                    value={editingSupplementTable?.schema || ''}
-                    onValueChange={(value) => {
-                      setEditingSupplementTable(prev => ({
-                        ...prev,
-                        schema: value
-                      }))
-                    }}
-                    disabled={loadingSchemas}
-                  >
-                    <SelectTrigger className="h-9 flex-1">
-                      <SelectValue placeholder="选择模式名" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {schemas.map(schema => (
-                        <SelectItem key={schema} value={schema}>
-                          {schema}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {supplementTableReadOnly ? (
+                    <div className="flex-1 h-9 flex items-center px-3 bg-muted rounded-md text-sm">
+                      {editingSupplementTable?.schema || ''}
+                    </div>
+                  ) : (
+                    <Select
+                      value={editingSupplementTable?.schema || ''}
+                      onValueChange={(value) => {
+                        setEditingSupplementTable(prev => ({
+                          ...prev,
+                          schema: value
+                        }))
+                      }}
+                      disabled={loadingSchemas}
+                    >
+                      <SelectTrigger className="h-9 flex-1">
+                        <SelectValue placeholder="选择模式名" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {schemas.map(schema => (
+                          <SelectItem key={schema} value={schema}>
+                            {schema}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 {/* 表名输入框 */}
@@ -1704,6 +2028,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                     }}
                     placeholder="输入表名"
                     className="flex-1"
+                    readOnly={supplementTableReadOnly}
                   />
                 </div>
 
@@ -1744,83 +2069,85 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
               <div className="flex-1 flex flex-col min-h-0 space-y-2">
                 <div className="flex items-center justify-between flex-shrink-0">
                   <Label className="text-sm font-medium">表结构</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        if (!editingSupplementTable?.fields) return
-                        const newFields = [...editingSupplementTable.fields]
-                        let changed = false
-                        for (let i = 1; i < newFields.length; i++) {
-                          if (newFields[i].selected && !newFields[i - 1].selected) {
-                            [newFields[i], newFields[i - 1]] = [newFields[i - 1], newFields[i]]
-                            changed = true
+                  {!supplementTableReadOnly && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (!editingSupplementTable?.fields) return
+                          const newFields = [...editingSupplementTable.fields]
+                          let changed = false
+                          for (let i = 1; i < newFields.length; i++) {
+                            if (newFields[i].selected && !newFields[i - 1].selected) {
+                              [newFields[i], newFields[i - 1]] = [newFields[i - 1], newFields[i]]
+                              changed = true
+                            }
                           }
-                        }
-                        if (changed) {
-                          setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
-                        }
-                      }}
-                    >
-                      <ArrowUp className="h-4 w-4 mr-1" />
-                      上移
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        if (!editingSupplementTable?.fields) return
-                        const newFields = [...editingSupplementTable.fields]
-                        let changed = false
-                        for (let i = newFields.length - 2; i >= 0; i--) {
-                          if (newFields[i].selected && !newFields[i + 1].selected) {
-                            [newFields[i], newFields[i + 1]] = [newFields[i + 1], newFields[i]]
-                            changed = true
+                          if (changed) {
+                            setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
                           }
-                        }
-                        if (changed) {
-                          setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
-                        }
-                      }}
-                    >
-                      <ArrowDown className="h-4 w-4 mr-1" />
-                      下移
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        // 生成默认字段名：C1, C2, C3...
-                        const existingFields = editingSupplementTable?.fields || []
-                        const existingNames = new Set(existingFields.map(f => f.name))
-                        let fieldNum = 1
-                        let defaultName = `C${fieldNum}`
-                        while (existingNames.has(defaultName)) {
-                          fieldNum++
-                          defaultName = `C${fieldNum}`
-                        }
+                        }}
+                      >
+                        <ArrowUp className="h-4 w-4 mr-1" />
+                        上移
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (!editingSupplementTable?.fields) return
+                          const newFields = [...editingSupplementTable.fields]
+                          let changed = false
+                          for (let i = newFields.length - 2; i >= 0; i--) {
+                            if (newFields[i].selected && !newFields[i + 1].selected) {
+                              [newFields[i], newFields[i + 1]] = [newFields[i + 1], newFields[i]]
+                              changed = true
+                            }
+                          }
+                          if (changed) {
+                            setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                          }
+                        }}
+                      >
+                        <ArrowDown className="h-4 w-4 mr-1" />
+                        下移
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          // 生成默认字段名：C1, C2, C3...
+                          const existingFields = editingSupplementTable?.fields || []
+                          const existingNames = new Set(existingFields.map(f => f.name))
+                          let fieldNum = 1
+                          let defaultName = `C${fieldNum}`
+                          while (existingNames.has(defaultName)) {
+                            fieldNum++
+                            defaultName = `C${fieldNum}`
+                          }
 
-                        const newField = {
-                          name: defaultName,
-                          type: '文本',
-                          comment: '',
-                          fieldType: '属性',
-                          category: '',
-                          dateFormat: '',
-                          primaryKey: false,
-                          sortDirection: 'asc',
-                          selected: false
-                        }
-                        setEditingSupplementTable(prev => ({
-                          ...prev,
-                          fields: [...(prev.fields || []), newField]
-                        }))
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      添加字段
-                    </Button>
-                  </div>
+                          const newField = {
+                            name: defaultName,
+                            type: '文本',
+                            comment: '',
+                            fieldType: '属性',
+                            category: '',
+                            dateFormat: '',
+                            primaryKey: false,
+                            sortDirection: 'asc',
+                            selected: false
+                          }
+                          setEditingSupplementTable(prev => ({
+                            ...prev,
+                            fields: [...(prev.fields || []), newField]
+                          }))
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        添加字段
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* 字段列表表格 */}
@@ -1834,7 +2161,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                         <TableHead className="w-[110px] p-2">类型</TableHead>
                         <TableHead className="w-[200px] p-2">日期格式</TableHead>
                         <TableHead className="p-2">字段中文名</TableHead>
-                        <TableHead className="w-[60px] p-2 text-center">操作</TableHead>
+                        {!supplementTableReadOnly && <TableHead className="w-[60px] p-2 text-center">操作</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1860,6 +2187,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                                   setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
                                 }}
                                 onClick={(e) => e.stopPropagation()}
+                                disabled={supplementTableReadOnly}
                               />
                             )}
                           </TableCell>
@@ -1872,7 +2200,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                                   newFields[index] = { ...newFields[index], sortDirection: value }
                                   setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
                                 }}
-                                disabled={!field.primaryKey}
+                                disabled={!field.primaryKey || (supplementTableReadOnly && editingSupplementTable?.id)}
                               >
                                 <SelectTrigger className="h-8">
                                   <SelectValue placeholder="无" />
@@ -1894,7 +2222,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                               }}
                               className="h-8"
                               placeholder="字段名"
-                              readOnly={field.isDefault}
+                              readOnly={field.isDefault || supplementTableReadOnly}
                             />
                           </TableCell>
                           <TableCell className="p-2">
@@ -1905,7 +2233,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                                 newFields[index] = { ...newFields[index], type: value, dateFormat: value === '日期' ? (field.dateFormat || 'yyyyMMdd') : '' }
                                 setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
                               }}
-                              disabled={field.isDefault}
+                              disabled={field.isDefault || supplementTableReadOnly}
                             >
                               <SelectTrigger className="h-8">
                                 <SelectValue />
@@ -1929,7 +2257,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                               }}
                               className="h-8"
                               disabled={field.type !== '日期' || field.isDefault}
-                              readOnly={field.isDefault}
+                              readOnly={field.isDefault || field.name === 'data_date'}
                             />
                           </TableCell>
                           <TableCell className="p-2">
@@ -1942,26 +2270,28 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
                               }}
                               className="h-8"
                               placeholder="字段中文名"
-                              readOnly={field.isDefault}
+                              readOnly={field.isDefault || field.name === 'data_date' || field.name === 'operator'}
                             />
                           </TableCell>
-                          <TableCell className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
-                            {!field.isDefault && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 text-destructive p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  const newFields = [...(editingSupplementTable?.fields || [])]
-                                  newFields.splice(index, 1)
-                                  setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </TableCell>
+                          {!supplementTableReadOnly && (
+                            <TableCell className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                              {!field.isDefault && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-destructive p-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    const newFields = [...(editingSupplementTable?.fields || [])]
+                                    newFields.splice(index, 1)
+                                    setEditingSupplementTable({ ...editingSupplementTable, fields: newFields })
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                       {(!editingSupplementTable?.fields || editingSupplementTable.fields.length === 0) && (
@@ -1979,11 +2309,90 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
           </div>
 
           <DialogFooter className="px-6 py-3 border-t flex-shrink-0">
-            <Button variant="outline" onClick={() => setIsAddSupplementDialogOpen(false)} disabled={supplementSaving}>
-              取消
+            <Button variant="outline" onClick={() => {
+              setIsAddSupplementDialogOpen(false)
+              setSupplementTableReadOnly(false)
+            }} disabled={supplementSaving}>
+              {supplementTableReadOnly ? '关闭' : '取消'}
             </Button>
             <Button onClick={handleSaveSupplementTable} disabled={supplementSaving}>
               {supplementSaving ? '保存中...' : '保存'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 导入数据对话框 */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="max-w-6xl h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>导入数据</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Toolbar */}
+            <div className="p-2 border-b">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="import-data-date" className="whitespace-nowrap">数据日期</Label>
+                  <Input
+                    id="import-data-date"
+                    type="date"
+                    value={importDataDate}
+                    onChange={(e) => setImportDataDate(e.target.value)}
+                    className="w-[180px]"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <Label htmlFor="import-file" className="whitespace-nowrap">选择文件</Label>
+                  <Input
+                    id="import-file"
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleFileSelect}
+                  />
+                </div>
+                <Button variant="outline" size="sm" disabled>
+                  <Search className="h-4 w-4 mr-2" />
+                  查询
+                </Button>
+                <Button size="sm" onClick={handleImportData} disabled={supplementSaving}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  {supplementSaving ? '导入中...' : '导入'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="flex-1 overflow-hidden">
+              <div className="h-full border border-t-0 border-b-0 overflow-y-auto">
+                <Table>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="text-center text-muted-foreground py-8">
+                        暂无数据
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* Pagination */}
+            <div className="border border-t-0">
+              <PaginationBar
+                totalSize={importTotalItems}
+                currentPage={importCurrentPage}
+                pageSize={importPageSize}
+                onPageChange={setImportCurrentPage}
+                onPageSizeChange={setImportPageSize}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+              关闭
             </Button>
           </DialogFooter>
         </DialogContent>

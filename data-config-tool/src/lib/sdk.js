@@ -205,6 +205,57 @@ export const queryTableList = async (dsCode = null, keyword = null, pageNo = 1, 
   }
 };
 
+export const querySupplementTableList = async (dsCode = null, keyword = null, pageNo = 1, pageSize = 100) => {
+  const sdk = getValidSdk();
+
+  try {
+    const condition = {};
+    if (dsCode) {
+      condition['dsCode'] = dsCode;
+    }
+
+    const params = {
+      panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
+      condition,
+      pageNo,
+      pageSize,
+      options: {
+        'excludeFields': ['表结构json']
+      }
+    };
+
+    console.log('[SDK] keyword 参数:', keyword, '类型:', typeof keyword, '是否添加:', !!keyword)
+    if (keyword) {
+      params.keyword = keyword;
+      console.log('[SDK] 已添加 keyword 到 params')
+    }
+
+    console.log('[SDK] 最终请求参数:', params)
+    const result = await sdk.api.queryFormDataList(params);
+    console.log('[SDK] 查询数据补录表列表结果:', result);
+
+    if (result && result.data) {
+      // 转换数据格式：后端字段 -> 前端字段
+      const list = (result.data.list || []).map(item => ({
+        id: item['编号'],
+        schema: item['模式名'] || '',
+        tableName: item['表名'] || '',
+        chineseName: item['中文名'] || '',
+        description: item['描述'] || '',
+        dsCode: item['dsCode'] || '',
+      }));
+      return {
+        list,
+        totalSize: result.data.totalSize || 0
+      };
+    }
+    return { list: [], totalSize: 0 };
+  } catch (error) {
+    console.error('[SDK] 查询数据补录表列表失败:', error);
+    throw error;
+  }
+};
+
 /**
  * 解析表结构字段
  */
@@ -338,6 +389,42 @@ export const queryTableDetail = async (id) => {
     return null;
   } catch (error) {
     console.error('[SDK] 查询表详情失败:', error);
+    throw error;
+  }
+};
+
+export const querySupplementTableDetail = async (id) => {
+  const sdk = getValidSdk();
+
+  try {
+    const params = {
+      panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
+      condition: {
+        code: id
+      }
+    };
+
+    console.log('[SDK] 查询数据补录表详情参数:', params);
+    const result = await sdk.api.queryFormData(params);
+    console.log('[SDK] 查询数据补录表详情结果:', result);
+
+    if (result && result.data && result.data.list && result.data.list.length > 0) {
+      const item = result.data.list[0];
+
+      // 转换数据格式：后端字段 -> 前端字段
+      return {
+        id: item['编号'],
+        schema: item['模式名'] || '',
+        tableName: item['表名'] || '',
+        chineseName: item['中文名'] || '',
+        description: item['描述'] || '',
+        dsCode: item['dsCode'] || '',
+        fields: parseTableStructure(item['表结构json'])
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('[SDK] 查询数据补录表详情失败:', error);
     throw error;
   }
 };
@@ -644,20 +731,84 @@ export const getSqlStruct = async (dstype, dsname, sql) => {
   }
 };
 
+export const importTableData = async (params) => {
+  const sdk = getValidSdk();
+
+  try {
+    const url = sdk.getSdkEndpoint('/wp-core/api/callButton2')
+    const payload = {
+      panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
+      buttonName: 'importTableData',
+      buttonParam: params,
+    }
+
+    console.log('[SDK] 导入数据参数:', payload)
+    const response = await sdk.request(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+
+    const result = await response.json()
+    console.log('[SDK] 导入数据结果:', result)
+    return result
+  } catch (error) {
+    console.error('[SDK] 导入数据失败:', error.message)
+    throw error
+  }
+};
+
+export const exportTableTemplate = async (params) => {
+  const sdk = getValidSdk();
+
+  try {
+    const url = sdk.getSdkEndpoint('/wp-core/api/callButton2')
+    const payload = {
+      panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
+      buttonName: 'exportTableTemplate',
+      buttonParam: params,
+    }
+
+    console.log('[SDK] 导出模板参数:', payload)
+    const response = await sdk.request(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      const jsonData = await response.json()
+      console.log('[SDK] 导出模板返回 JSON (错误):', jsonData)
+      return jsonData
+    }
+
+    const blob = await response.blob()
+    console.log('[SDK] 导出模板成功, size:', blob.size, 'type:', blob.type)
+    return blob
+  } catch (error) {
+    console.error('[SDK] 导出模板失败:', error.message)
+    throw error
+  }
+};
+
 export default {
   isSdkAvailable,
   queryDataSourceList,
   saveDataSource,
   deleteDataSource,
   queryTableList,
+  querySupplementTableList,
   saveTable,
   deleteTable,
   saveSupplementTable,
+  queryTableDetail,
+  querySupplementTableDetail,
   queryDictionaryCategories,
   querySchemaList,
   queryDbTableList,
   queryTableStructure,
   getSqlStruct,
   normalizeDbType,
-  normalizeFieldCategory
+  normalizeFieldCategory,
+  importTableData,
+  exportTableTemplate
 };
