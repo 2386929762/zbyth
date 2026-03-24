@@ -97,14 +97,9 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
   const [supplementSearchInput, setSupplementSearchInput] = useState('')
   const [supplementCurrentPage, setSupplementCurrentPage] = useState(1)
   const [supplementPageSize, setSupplementPageSize] = useState(50)
-  const [supplementTotalItems, setSupplementTotalItems] = useState(0)
   const [isAddSupplementDialogOpen, setIsAddSupplementDialogOpen] = useState(false)
-  const [isSupplementDetailDialogOpen, setIsSupplementDetailDialogOpen] = useState(false)
   const [editingSupplementTable, setEditingSupplementTable] = useState(null)
-  const [supplementLoadingDetail, setSupplementLoadingDetail] = useState(false)
   const [supplementSaving, setSupplementSaving] = useState(false)
-  const [supplementSelectedSchema, setSupplementSelectedSchema] = useState('')
-  const [supplementFormData, setSupplementFormData] = useState({ chineseName: '', description: '' })
 
   // 分页状态（添加表 dialog 内的选源表列表）
   const [dialogPage, setDialogPage] = useState(1)
@@ -795,8 +790,6 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
       toast({ variant: "destructive", title: "提示", description: "请先选择数据源" })
       return
     }
-    setSupplementSelectedSchema('')
-    setSupplementFormData({ chineseName: '', description: '' })
     const defaultFields = [
       {
         name: 'operator',
@@ -831,7 +824,6 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
       fields: defaultFields,
       dsCode: selectedSource.id
     })
-    setSupplementLoadingDetail(false)
     setTimeout(() => setIsAddSupplementDialogOpen(true), 0)
     await loadSchemas()
   }
@@ -891,7 +883,6 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
       toast({ title: "保存成功", description: "数据补录表已保存" })
       setTimeout(() => {
         setIsAddSupplementDialogOpen(false)
-        setIsSupplementDetailDialogOpen(false)
       }, 200)
     } catch (error) {
       console.error('[TableManagement] 保存数据补录表失败:', error)
@@ -1089,7 +1080,7 @@ export function TableManagement({ selectedSource, tables, setTables, }) {
         />
       ) : (
         <PaginationBar
-          totalSize={supplementTotalItems}
+          totalSize={supplementTables.length}
           currentPage={supplementCurrentPage}
           pageSize={supplementPageSize}
           onPageChange={setSupplementCurrentPage}
