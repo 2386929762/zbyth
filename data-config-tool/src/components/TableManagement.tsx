@@ -876,7 +876,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
         comment: '数据日期',
         fieldType: '属性',
         category: '',
-        dateFormat: 'yyyyMMdd',
+        dateFormat: 'yyyy-MM-dd',
         primaryKey: false,
         sortDirection: 'asc',
         selected: false,
@@ -993,7 +993,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
       let dataDateStr: string | undefined = undefined
       if (importDataDate && importSupplementTable) {
         const dataDateField = importSupplementTable.fields.find(f => f.name === 'data_date')
-        const dateFormat = dataDateField?.dateFormat || 'yyyyMMdd'
+        const dateFormat = dataDateField?.dateFormat || 'yyyy-MM-dd'
         
         const year = importDataDate.getFullYear()
         const month = String(importDataDate.getMonth() + 1).padStart(2, '0')
@@ -1156,15 +1156,19 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
   const handleExportTableTemplate = async (tableId: string | number) => {
     try {
       setSupplementSaving(true)
+      
+      const table = supplementTables.find(t => t.id === tableId)
+      const fileName = table?.chineseName || table?.tableName || `table_${tableId}`
+      
       const result = await exportTableTemplate({
-        tableCode: tableId
+        code: tableId
       })
 
       if (result instanceof Blob) {
         const url = window.URL.createObjectURL(result)
         const link = document.createElement('a')
         link.href = url
-        link.download = `template_${tableId}_${Date.now()}.xlsx`
+        link.download = `${fileName}_数据模板.xlsx`
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)

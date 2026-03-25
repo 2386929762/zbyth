@@ -833,14 +833,14 @@ export const querySupplementData = async (params: {
   }
 };
 
-export const exportTableTemplate = async (params: { tableCode: string | number }): Promise<Blob | SdkResult> => {
+export const exportTableTemplate = async (params: { code: string | number }): Promise<Blob | SdkResult> => {
   const sdk = getValidSdk();
 
   try {
     const url = sdk.getSdkEndpoint('/wp-core/api/callButton2')
     const payload = {
       panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
-      buttonName: 'exportTableTemplate',
+      buttonName: 'exportSupplementDataTemplate',
       buttonParam: params,
     }
 
