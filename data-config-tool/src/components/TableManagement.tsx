@@ -331,6 +331,14 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importCurrentPage, importPageSize])
 
+  // 当importSupplementTable加载完成后自动加载数据
+  useEffect(() => {
+    if (isImportDialogOpen && importSupplementTable && importTableId) {
+      loadSupplementData()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importSupplementTable])
+
   // 从 SDK 获取模式名列表
   const loadSchemas = async () => {
     if (!selectedSource || !isSdkAvailable()) return
@@ -1064,8 +1072,6 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
         const detail = await querySupplementTableDetail(tableId)
         if (detail) {
           setImportSupplementTable(detail)
-          // Load initial data after table structure is loaded
-          loadSupplementData()
         }
       } catch (error) {
         console.error('[TableManagement] 加载补录表详情失败:', error)
