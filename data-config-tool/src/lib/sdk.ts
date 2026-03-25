@@ -777,14 +777,14 @@ export const getSqlStruct = async (dstype: string, dsname: string, sql: string):
   }
 };
 
-export const importTableData = async (params: { tableCode: string | number; fileContent: string }): Promise<SdkResult> => {
+export const importSupplementData = async (params: { code: string | number; content: string; dataDate: string }): Promise<SdkResult> => {
   const sdk = getValidSdk();
 
   try {
     const url = sdk.getSdkEndpoint('/wp-core/api/callButton2')
     const payload = {
       panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
-      buttonName: 'importTableData',
+      buttonName: 'importSupplementData',
       buttonParam: params,
     }
 
@@ -804,7 +804,7 @@ export const importTableData = async (params: { tableCode: string | number; file
 };
 
 export const querySupplementData = async (params: { 
-  tableCode: string | number; 
+  code: string | number; 
   pageNo: number; 
   pageSize: number; 
   dataDate?: string;
@@ -833,7 +833,7 @@ export const querySupplementData = async (params: {
   }
 };
 
-export const exportTableTemplate = async (params: { code: string | number }): Promise<Blob | SdkResult> => {
+export const exportSupplementDataTemplate = async (params: { code: string | number }): Promise<Blob | SdkResult> => {
   const sdk = getValidSdk();
 
   try {
@@ -885,6 +885,6 @@ export default {
   getSqlStruct,
   normalizeDbType,
   normalizeFieldCategory,
-  importTableData,
-  exportTableTemplate
+  importSupplementData,
+  exportSupplementDataTemplate
 };

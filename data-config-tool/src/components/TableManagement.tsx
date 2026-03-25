@@ -54,8 +54,8 @@ import {
   getSqlStruct,
   normalizeDbType,
   normalizeFieldCategory,
-  importTableData,
-  exportTableTemplate,
+  importSupplementData,
+  exportSupplementDataTemplate,
   querySupplementData,
   type DataSource,
   type TableInfo,
@@ -857,6 +857,20 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     }
     const defaultFields: TableField[] = [
       {
+        name: 'id',
+        type: '文本',
+        comment: '主键',
+        fieldType: '属性',
+        category: '',
+        dateFormat: '',
+        primaryKey: true,
+        sortDirection: 'asc',
+        selected: false,
+        isDefault: true,
+        length: '',
+        precision: '',
+      },
+      {
         name: 'operator',
         type: '文本',
         comment: '操作员',
@@ -918,7 +932,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
 
     const nonDefaultFields = selectedFields.filter(f => !f.isDefault)
     if (nonDefaultFields.length === 0) {
-      toast({ variant: "destructive", title: "校验失败", description: "除了固定的'operator'和'data_date'外，必须要有其他字段" })
+      toast({ variant: "destructive", title: "校验失败", description: "除了固定的'id'、'operator'和'data_date'外，必须要有其他字段" })
       return
     }
 
@@ -934,9 +948,10 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
       return
     }
 
-    const hasPrimaryKey = selectedFields.some(f => f.primaryKey)
-    if (!hasPrimaryKey) {
-      toast({ variant: "destructive", title: "校验失败", description: "字段列表中必须要有主键字段" })
+    const fieldNames = selectedFields.map(f => f.name.trim())
+    const duplicateNames = fieldNames.filter((name, index) => fieldNames.indexOf(name) !== index)
+    if (duplicateNames.length > 0) {
+      toast({ variant: "destructive", title: "校验失败", description: `字段名"${duplicateNames[0]}"重复，请确保所有字段名唯一` })
       return
     }
 
@@ -985,31 +1000,32 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     }
   }
 
+  const formatDataDate = (date: Date, supplementTable: TableInfo | null): string => {
+    const dataDateField = supplementTable?.fields.find(f => f.name === 'data_date')
+    const dateFormat = dataDateField?.dateFormat || 'yyyy-MM-dd'
+    
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+
+    if (dateFormat === 'yyyyMMdd') {
+      return `${year}${month}${day}`
+    } else if (dateFormat === 'yyyy-MM-dd') {
+      return `${year}-${month}-${day}`
+    } else {
+      return `${year}${month}${day}`
+    }
+  }
+
   const loadSupplementData = async () => {
     if (!importTableId || !isSdkAvailable()) return
     
     setLoadingImportData(true)
     try {
-      let dataDateStr: string | undefined = undefined
-      if (importDataDate && importSupplementTable) {
-        const dataDateField = importSupplementTable.fields.find(f => f.name === 'data_date')
-        const dateFormat = dataDateField?.dateFormat || 'yyyy-MM-dd'
-        
-        const year = importDataDate.getFullYear()
-        const month = String(importDataDate.getMonth() + 1).padStart(2, '0')
-        const day = String(importDataDate.getDate()).padStart(2, '0')
-        
-        if (dateFormat === 'yyyyMMdd') {
-          dataDateStr = `${year}${month}${day}`
-        } else if (dateFormat === 'yyyy-MM-dd') {
-          dataDateStr = `${year}-${month}-${day}`
-        } else {
-          dataDateStr = `${year}${month}${day}`
-        }
-      }
+      const dataDateStr = importDataDate ? formatDataDate(importDataDate, importSupplementTable) : undefined
       
       const result = await querySupplementData({
-        tableCode: importTableId,
+        code: importTableId,
         pageNo: importCurrentPage,
         pageSize: importPageSize,
         dataDate: dataDateStr,
@@ -1105,6 +1121,8 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
       return
     }
 
+    const dataDateStr = formatDataDate(uploadDataDate, importSupplementTable)
+
     try {
       setSupplementSaving(true)
       const reader = new FileReader()
@@ -1120,9 +1138,10 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
         const base64String = btoa(binary)
 
         try {
-          const result = await importTableData({
-            tableCode: importTableId!,
-            fileContent: base64String
+          const result = await importSupplementData({
+            code: importTableId!,
+            content: base64String,
+            dataDate: dataDateStr
           })
           toast({
             title: "上传成功",
@@ -1160,7 +1179,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
       const table = supplementTables.find(t => t.id === tableId)
       const fileName = table?.chineseName || table?.tableName || `table_${tableId}`
       
-      const result = await exportTableTemplate({
+      const result = await exportSupplementDataTemplate({
         code: tableId
       })
 
@@ -1778,7 +1797,6 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
                     <TableHeader className="sticky top-0 bg-muted">
                       <TableRow>
                         <TableHead className="w-[60px] p-2 text-center">主键</TableHead>
-                        <TableHead className="w-[100px] p-2">排序</TableHead>
                         <TableHead className="w-[300px] p-2">字段名</TableHead>
                         <TableHead className="w-[110px] p-2">类型</TableHead>
                         <TableHead className="w-[200px] p-2">日期格式</TableHead>
@@ -1794,27 +1812,8 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
                           setEditingSupplementTable(editingSupplementTable ? { ...editingSupplementTable, fields: newFields } : null)
                         }} className={`cursor-pointer hover:bg-muted/50 ${field.selected ? 'bg-muted' : ''}`}>
                           <TableCell className="p-2 text-center">
-                            {!field.isDefault && (
-                              <Checkbox checked={field.primaryKey || false} onCheckedChange={() => {
-                                const newFields = [...(editingSupplementTable?.fields || [])]
-                                newFields[index] = { ...newFields[index], primaryKey: !newFields[index].primaryKey }
-                                setEditingSupplementTable(editingSupplementTable ? { ...editingSupplementTable, fields: newFields } : null)
-                              }} onClick={(e) => e.stopPropagation()} disabled={supplementTableReadOnly} />
-                            )}
-                          </TableCell>
-                          <TableCell className="p-2">
-                            {!field.isDefault && (
-                              <Select value={field.sortDirection || 'asc'} onValueChange={(value) => {
-                                const newFields = [...(editingSupplementTable?.fields || [])]
-                                newFields[index] = { ...newFields[index], sortDirection: value }
-                                setEditingSupplementTable(editingSupplementTable ? { ...editingSupplementTable, fields: newFields } : null)
-                              }} disabled={!field.primaryKey || (supplementTableReadOnly && !!editingSupplementTable?.id)}>
-                                <SelectTrigger className="h-8"><SelectValue placeholder="无" /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="asc">正序</SelectItem>
-                                  <SelectItem value="desc">倒序</SelectItem>
-                                </SelectContent>
-                              </Select>
+                            {field.name === 'id' && (
+                              <Checkbox checked={true} disabled onClick={(e) => e.stopPropagation()} />
                             )}
                           </TableCell>
                           <TableCell className="font-mono p-2">
@@ -1933,9 +1932,15 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
                       {importDataList.length > 0 ? (
                         importDataList.map((row, rowIndex) => (
                           <TableRow key={rowIndex}>
-                            {importSupplementTable?.fields?.map((field, colIndex) => (
-                              <TableCell key={colIndex} className="p-2">{row[field.name] || ''}</TableCell>
-                            ))}
+                            {Array.isArray(row) ? (
+                              row.map((cellValue, colIndex) => (
+                                <TableCell key={colIndex} className="p-2">{cellValue || ''}</TableCell>
+                              ))
+                            ) : (
+                              importSupplementTable?.fields?.map((field, colIndex) => (
+                                <TableCell key={colIndex} className="p-2">{row[field.name] || ''}</TableCell>
+                              ))
+                            )}
                           </TableRow>
                         ))
                       ) : (
