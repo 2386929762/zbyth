@@ -732,7 +732,7 @@ export const saveSupplementTable = async (table: TableInfo): Promise<SdkResult> 
 
     const params = {
       panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
-      buttonName: 'designer_save',
+      buttonName: '保存补录数据表',
       formData
     };
 
