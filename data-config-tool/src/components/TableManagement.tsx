@@ -1057,11 +1057,15 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     setImportDataList([])
     setImportTotalItems(0)
     
+    setIsImportDialogOpen(true)
+    
     if (isSdkAvailable()) {
       try {
         const detail = await querySupplementTableDetail(tableId)
         if (detail) {
           setImportSupplementTable(detail)
+          // Load initial data after table structure is loaded
+          loadSupplementData()
         }
       } catch (error) {
         console.error('[TableManagement] 加载补录表详情失败:', error)
@@ -1070,11 +1074,8 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
           title: "加载失败",
           description: (error as Error).message
         })
-        return
       }
     }
-    
-    setIsImportDialogOpen(true)
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
