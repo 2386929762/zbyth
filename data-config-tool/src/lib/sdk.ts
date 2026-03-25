@@ -803,6 +803,36 @@ export const importTableData = async (params: { tableCode: string | number; file
   }
 };
 
+export const querySupplementData = async (params: { 
+  tableCode: string | number; 
+  pageNo: number; 
+  pageSize: number; 
+  dataDate?: string;
+  onlyMyself?: boolean;
+}): Promise<SdkResult> => {
+  const sdk = getValidSdk();
+
+  try {
+    const url = sdk.getSdkEndpoint('/wp-core/api/callButton2')
+    const payload = {
+      panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
+      buttonName: 'querySupplementData',
+      buttonParam: params,
+    }
+
+    const response = await sdk.request(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+
+    const result = await response.json()
+    return result
+  } catch (error) {
+    console.error('[SDK] 查询补录数据失败:', (error as Error).message)
+    throw error
+  }
+};
+
 export const exportTableTemplate = async (params: { tableCode: string | number }): Promise<Blob | SdkResult> => {
   const sdk = getValidSdk();
 

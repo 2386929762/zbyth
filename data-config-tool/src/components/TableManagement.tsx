@@ -56,6 +56,7 @@ import {
   normalizeFieldCategory,
   importTableData,
   exportTableTemplate,
+  querySupplementData,
   type DataSource,
   type TableInfo,
   type TableField,
@@ -139,7 +140,17 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
   const [importTableId, setImportTableId] = useState<string | number | null>(null)
   const [importCurrentPage, setImportCurrentPage] = useState(1)
   const [importPageSize, setImportPageSize] = useState(50)
-  const [_importTotalItems, _setImportTotalItems] = useState(0)
+  const [importTotalItems, setImportTotalItems] = useState(0)
+  const [importOnlyMyself, setImportOnlyMyself] = useState(false)
+  const [importSupplementTable, setImportSupplementTable] = useState<TableInfo | null>(null)
+  const [importDataList, setImportDataList] = useState<any[]>([])
+  const [loadingImportData, setLoadingImportData] = useState(false)
+  
+  // 上传数据对话框相关状态
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
+  const [uploadDataDate, setUploadDataDate] = useState<Date | undefined>(undefined)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const uploadFileInputRef = useRef<HTMLInputElement>(null)
 
   // 分页状态（添加表 dialog 内的选源表列表）
   const [dialogPage, setDialogPage] = useState(1)
@@ -311,6 +322,14 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supplementCurrentPage, supplementPageSize, contentTab])
+
+  // 当导入对话框分页变化时重新加载数据
+  useEffect(() => {
+    if (isImportDialogOpen && importTableId) {
+      loadSupplementData()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importCurrentPage, importPageSize])
 
   // 从 SDK 获取模式名列表
   const loadSchemas = async () => {
@@ -966,11 +985,79 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     }
   }
 
-  const handleOpenImportDialog = (tableId: string | number) => {
+  const loadSupplementData = async () => {
+    if (!importTableId || !isSdkAvailable()) return
+    
+    setLoadingImportData(true)
+    try {
+      let dataDateStr: string | undefined = undefined
+      if (importDataDate && importSupplementTable) {
+        const dataDateField = importSupplementTable.fields.find(f => f.name === 'data_date')
+        const dateFormat = dataDateField?.dateFormat || 'yyyyMMdd'
+        
+        const year = importDataDate.getFullYear()
+        const month = String(importDataDate.getMonth() + 1).padStart(2, '0')
+        const day = String(importDataDate.getDate()).padStart(2, '0')
+        
+        if (dateFormat === 'yyyyMMdd') {
+          dataDateStr = `${year}${month}${day}`
+        } else if (dateFormat === 'yyyy-MM-dd') {
+          dataDateStr = `${year}-${month}-${day}`
+        } else {
+          dataDateStr = `${year}${month}${day}`
+        }
+      }
+      
+      const result = await querySupplementData({
+        tableCode: importTableId,
+        pageNo: importCurrentPage,
+        pageSize: importPageSize,
+        dataDate: dataDateStr,
+        onlyMyself: importOnlyMyself
+      })
+      
+      if (result && result.data) {
+        setImportDataList(result.data.list || [])
+        setImportTotalItems(result.data.totalSize || 0)
+      }
+    } catch (error) {
+      console.error('[TableManagement] 加载补录数据失败:', error)
+      toast({
+        variant: "destructive",
+        title: "加载失败",
+        description: (error as Error).message
+      })
+    } finally {
+      setLoadingImportData(false)
+    }
+  }
+
+  const handleOpenImportDialog = async (tableId: string | number) => {
     setImportTableId(tableId)
     setImportDataDate(undefined)
     setImportFile(null)
     setImportCurrentPage(1)
+    setImportOnlyMyself(false)
+    setImportDataList([])
+    setImportTotalItems(0)
+    
+    if (isSdkAvailable()) {
+      try {
+        const detail = await querySupplementTableDetail(tableId)
+        if (detail) {
+          setImportSupplementTable(detail)
+        }
+      } catch (error) {
+        console.error('[TableManagement] 加载补录表详情失败:', error)
+        toast({
+          variant: "destructive",
+          title: "加载失败",
+          description: (error as Error).message
+        })
+        return
+      }
+    }
+    
     setIsImportDialogOpen(true)
   }
 
@@ -981,12 +1068,39 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     }
   }
 
-  const handleImportData = async () => {
-    if (!importFile) {
+  const handleUploadFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setUploadFile(file)
+    }
+  }
+
+  const handleOpenUploadDialog = () => {
+    setUploadDataDate(undefined)
+    setUploadFile(null)
+    setIsUploadDialogOpen(true)
+  }
+
+  const handleQueryImportData = () => {
+    setImportCurrentPage(1)
+    loadSupplementData()
+  }
+
+  const handleUploadData = async () => {
+    if (!uploadDataDate) {
       toast({
         variant: "destructive",
         title: "校验失败",
-        description: "请选择要导入的文件"
+        description: "请选择数据日期"
+      })
+      return
+    }
+
+    if (!uploadFile) {
+      toast({
+        variant: "destructive",
+        title: "校验失败",
+        description: "请选择要上传的文件"
       })
       return
     }
@@ -1010,24 +1124,24 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
             tableCode: importTableId!,
             fileContent: base64String
           })
-          // console.log('[TableManagement] 导入数据结果:', result)
           toast({
-            title: "导入成功",
-            description: "数据已成功导入"
+            title: "上传成功",
+            description: "数据已成功上传"
           })
-          setIsImportDialogOpen(false)
+          setIsUploadDialogOpen(false)
+          loadSupplementData()
         } catch (error) {
-          console.error('[TableManagement] 导入数据失败:', error)
+          console.error('[TableManagement] 上传数据失败:', error)
           toast({
             variant: "destructive",
-            title: "导入失败",
+            title: "上传失败",
             description: (error as Error).message
           })
         } finally {
           setSupplementSaving(false)
         }
       }
-      reader.readAsArrayBuffer(importFile)
+      reader.readAsArrayBuffer(uploadFile)
     } catch (error) {
       console.error('[TableManagement] 处理文件失败:', error)
       toast({
@@ -1779,55 +1893,107 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <Label className="whitespace-nowrap">数据日期</Label>
-                  <DatePicker date={importDataDate} onDateChange={setImportDataDate} placeholder="选择数据日期" />
+                  <DatePicker date={importDataDate} onDateChange={setImportDataDate} placeholder="选择数据日期" clearable />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label className="whitespace-nowrap">选择文件</Label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={handleFileSelect}
-                    className="hidden"
+                  <Checkbox 
+                    id="onlyMyself" 
+                    checked={importOnlyMyself} 
+                    onCheckedChange={(checked) => setImportOnlyMyself(checked as boolean)} 
                   />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-[200px] justify-start"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    {importFile ? importFile.name : '选择文件'}
-                  </Button>
+                  <Label htmlFor="onlyMyself" className="whitespace-nowrap cursor-pointer">只看自己</Label>
                 </div>
-                <Button variant="outline" size="sm" disabled>
+                <Button variant="outline" size="sm" onClick={handleQueryImportData} disabled={loadingImportData}>
                   <Search className="h-4 w-4 mr-2" />查询
                 </Button>
-                <Button size="sm" onClick={handleImportData} disabled={supplementSaving}>
-                  <Upload className="h-4 w-4 mr-2" />{supplementSaving ? '导入中...' : '导入'}
+                <Button size="sm" onClick={handleOpenUploadDialog} disabled={supplementSaving}>
+                  <Upload className="h-4 w-4 mr-2" />上传数据
                 </Button>
               </div>
             </div>
 
             <div className="flex-1 overflow-hidden">
               <div className="h-full border border-t-0 border-b-0 overflow-y-auto">
-                <Table>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell className="text-center text-muted-foreground py-8">暂无数据</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
+                {loadingImportData ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground">加载中...</div>
+                ) : (
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background">
+                      <TableRow>
+                        {importSupplementTable?.fields?.map((field, index) => (
+                          <TableHead key={index} className="p-2">{field.comment || field.name}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importDataList.length > 0 ? (
+                        importDataList.map((row, rowIndex) => (
+                          <TableRow key={rowIndex}>
+                            {importSupplementTable?.fields?.map((field, colIndex) => (
+                              <TableCell key={colIndex} className="p-2">{row[field.name] || ''}</TableCell>
+                            ))}
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={importSupplementTable?.fields?.length || 1} className="text-center text-muted-foreground py-8">暂无数据</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
               </div>
             </div>
 
             <div className="border border-t-0">
-              <PaginationBar totalSize={_importTotalItems} currentPage={importCurrentPage} pageSize={importPageSize} onPageChange={setImportCurrentPage} onPageSizeChange={setImportPageSize as unknown as (size: string) => void} />
+              <PaginationBar totalSize={importTotalItems} currentPage={importCurrentPage} pageSize={importPageSize} onPageChange={setImportCurrentPage} onPageSizeChange={(size) => setImportPageSize(parseInt(size))} />
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 上传数据对话框 */}
+      <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+        <DialogContent className="max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>上传数据</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="flex items-center gap-2">
+              <Label className="w-20 text-right">数据日期</Label>
+              <DatePicker date={uploadDataDate} onDateChange={setUploadDataDate} placeholder="选择数据日期" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="w-20 text-right">选择文件</Label>
+              <input
+                ref={uploadFileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleUploadFileSelect}
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => uploadFileInputRef.current?.click()}
+                className="flex-1 justify-start"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {uploadFile ? uploadFile.name : '选择文件'}
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)}>取消</Button>
+            <Button onClick={handleUploadData} disabled={supplementSaving}>
+              {supplementSaving ? '上传中...' : '确定'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
