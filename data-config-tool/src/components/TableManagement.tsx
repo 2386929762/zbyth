@@ -328,21 +328,6 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importSupplementTable])
 
-  // 从 SDK 获取模式名列表
-  const loadSchemas = async () => {
-    if (!selectedSource || !isSdkAvailable()) return
-
-    setLoadingSchemas(true)
-    try {
-      const schemaList = await querySchemaList(selectedSource)
-      setSchemas(schemaList)
-    } catch (error) {
-      console.error('[TableManagement] 获取schema列表失败:', error)
-    } finally {
-      setLoadingSchemas(false)
-    }
-  }
-
   const handleOpenAddDialog = async () => {
     if (!selectedSource) {
       toast({ variant: "destructive", title: "提示", description: "请先选择数据源" })

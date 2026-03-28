@@ -225,7 +225,8 @@ export const queryTableList = async (dsCode: string | number | null = null, keyw
       pageSize,
       options: {
         'excludeFields': ['表结构json']
-      }
+      },
+      orderBy: [{'fieldName': '表名'}]
     };
 
     // console.log('[SDK] keyword 参数:', keyword, '类型:', typeof keyword, '是否添加:', !!keyword)
