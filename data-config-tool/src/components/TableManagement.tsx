@@ -22,7 +22,6 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select,
   SelectContent,
@@ -49,7 +48,6 @@ import {
   saveSupplementTable,
   queryDictionaryCategories,
   querySchemaList,
-  queryDbTableList,
   queryTableStructure,
   getSqlStruct,
   normalizeDbType,
@@ -60,10 +58,10 @@ import {
   type DataSource,
   type TableInfo,
   type TableField,
-  type DbTableInfo,
   type CategoryOption,
 } from '@/lib/sdk'
 import { useToast } from "@/hooks/use-toast"
+import { SourceTableSelector } from '@/components/SourceTableSelector'
 
 // Suppress unused import warnings for components used in JSX
 void Tooltip
@@ -131,6 +129,9 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
   const [editingSupplementTable, setEditingSupplementTable] = useState<TableInfo | null>(null)
   const [supplementSaving, setSupplementSaving] = useState(false)
   const [supplementTableReadOnly, setSupplementTableReadOnly] = useState(false)
+  const [isSupplementSourceSelectorOpen, setIsSupplementSourceSelectorOpen] = useState(false)
+  const [supplementFromSource, setSupplementFromSource] = useState(false)
+  const [loadingSupplementFields, setLoadingSupplementFields] = useState(false)
 
   // 导入对话框相关状态
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -152,23 +153,14 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const uploadFileInputRef = useRef<HTMLInputElement>(null)
 
-  // 分页状态（添加表 dialog 内的选源表列表）
-  const [dialogPage, setDialogPage] = useState(1)
-  const [dialogPageSize, setDialogPageSize] = useState(50)
-
   // 左侧表列表状态
   const [selectedSchema, setSelectedSchema] = useState('')
-  const [tableSearchText, setTableSearchText] = useState('')
-  const [selectedTableName, setSelectedTableName] = useState<string | null>(null)
 
   // 从 SDK 获取的数据
   const [schemas, setSchemas] = useState<string[]>([])
-  const [tablesFromDb, setTablesFromDb] = useState<DbTableInfo[]>([])
   const [loadingSchemas, setLoadingSchemas] = useState(false)
-  const [loadingDbTables, setLoadingDbTables] = useState(false)
 
   // 右侧字段列表状态
-  const [formData, setFormData] = useState({ chineseName: '', description: '' })
   const [editingTable, setEditingTable] = useState<TableInfo | null>(null)
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([])
 
@@ -176,7 +168,6 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
   const [activeTab, setActiveTab] = useState('structure')
   const [sqlContent, setSqlContent] = useState('')
   const [finalSqlContent, setFinalSqlContent] = useState('')
-  const [addTableMode, setAddTableMode] = useState('table')
 
   // 参数提取相关状态
   const [isParamDialogOpen, setIsParamDialogOpen] = useState(false)
@@ -186,8 +177,6 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
 
   // 用 useRef 记录当前数据源ID，防止重复加载
   const lastLoadedSourceIdRef = React.useRef<string | number | null>(null)
-  // 用 useRef 记录 dialog 中上次加载的 schema，防止模式切换时重复加载
-  const lastLoadedDialogSchemaRef = useRef<string | null>(null)
 
   // 加载表列表
   const loadTables = async () => {
@@ -354,48 +343,14 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     }
   }
 
-  // 从 SDK 获取表名列表
-  const loadTablesFromDb = async (schemaName: string) => {
-    if (!selectedSource || !isSdkAvailable() || !schemaName) return
-
-    setLoadingDbTables(true)
-    try {
-      const tableList = await queryDbTableList(selectedSource, schemaName)
-      setTablesFromDb(tableList)
-    } catch (error) {
-      console.error('[TableManagement] 获取表列表失败:', error)
-    } finally {
-      setLoadingDbTables(false)
-    }
-  }
-
   const handleOpenAddDialog = async () => {
     if (!selectedSource) {
       toast({ variant: "destructive", title: "提示", description: "请先选择数据源" })
       return
     }
     setSelectedSchema('')
-    setTableSearchText('')
-    setDialogPage(1)
-    setSelectedTableName(null)
-    setFormData({ chineseName: '', description: '' })
-    setSchemas([])
-    setTablesFromDb([])
-    lastLoadedDialogSchemaRef.current = null
     setTimeout(() => setIsAddDialogOpen(true), 0)
-    await loadSchemas()
   }
-
-  // 当 selectedSchema 变化时，加载对应的表列表（仅源表模式）
-  useEffect(() => {
-    if (isAddDialogOpen && addTableMode === 'table' && selectedSchema) {
-      if (lastLoadedDialogSchemaRef.current !== selectedSchema) {
-        lastLoadedDialogSchemaRef.current = selectedSchema
-        loadTablesFromDb(selectedSchema)
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSchema, isAddDialogOpen, addTableMode])
 
   useEffect(() => {
     if (isDetailDialogOpen) {
@@ -403,34 +358,21 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     }
   }, [isDetailDialogOpen, loadDictionaryCategories])
 
-  // 过滤和分页表列表
-  const filteredTables = tablesFromDb.filter(table =>
-    table.name.toLowerCase().includes(tableSearchText.toLowerCase()) ||
-    table.comment.toLowerCase().includes(tableSearchText.toLowerCase())
-  )
-
-  const dialogTotalPages = Math.ceil(filteredTables.length / dialogPageSize)
-  const paginatedTables = filteredTables.slice(
-    (dialogPage - 1) * dialogPageSize,
-    dialogPage * dialogPageSize
-  )
-
   // 加载状态用于详情对话框
   const [loadingDetail, setLoadingDetail] = useState(false)
 
   // 选择表时打开表结构对话框
-  const handleSelectTableRow = async (tableName: string) => {
-    if (!selectedSchema) {
+  const handleSelectTableRow = async (tableName: string, schemaOverride?: string, tableCommentOverride?: string) => {
+    const schema = schemaOverride || selectedSchema
+    if (!schema) {
       toast({ variant: "destructive", title: "提示", description: "请先选择模式名" })
       return
     }
-    const tableInfo = tablesFromDb.find(t => t.name === tableName)
-
     setEditingTable({
       tableName: tableName,
-      chineseName: tableInfo?.comment || '',
+      chineseName: tableCommentOverride || '',
       description: '',
-      schema: selectedSchema,
+      schema: schema,
       dsCode: selectedSource.id as string,
       fields: []
     })
@@ -439,7 +381,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
 
     if (isSdkAvailable()) {
       try {
-        const fields = await queryTableStructure(selectedSource, selectedSchema, tableName)
+        const fields = await queryTableStructure(selectedSource, schema, tableName)
         if (fields) {
           setEditingTable(prev => prev ? ({
             ...prev,
@@ -657,39 +599,19 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     setIsParamDialogOpen(false)
   }
 
-  const handleConfirmAddTable = () => {
-    if (addTableMode === 'sql') {
-      const newTable: TableInfo = {
-        tableName: '',
-        description: '',
-        dsCode: selectedSource.id as string,
-        schema: selectedSchema,
-        chineseName: '',
-        fields: [],
-        type: 'sql'
-      }
-
-      handleOpenDetailDialog(newTable, 'sql')
-      return
-    }
-
-    if (!selectedTableName) {
-      toast({ variant: "destructive", title: "提示", description: "请选择一个表" })
-      return
-    }
-
-    const tableInfo = tablesFromDb.find(t => t.name === selectedTableName)
+  const handleConfirmAddTable = (schemaOverride?: string) => {
+    const schema = schemaOverride || selectedSchema
     const newTable: TableInfo = {
-      tableName: selectedTableName,
-      chineseName: formData.chineseName || tableInfo?.comment || '',
-      description: formData.description || '',
+      tableName: '',
+      description: '',
       dsCode: selectedSource.id as string,
-      schema: selectedSchema,
-      fields: []
+      schema: schema,
+      chineseName: '',
+      fields: [],
+      type: 'sql'
     }
 
-    setTables([...tables, newTable])
-    setIsAddDialogOpen(false)
+    handleOpenDetailDialog(newTable, 'sql')
   }
 
   const handleOpenDetailDialog = async (table: TableInfo, initialTab = 'structure') => {
@@ -863,6 +785,16 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
       toast({ variant: "destructive", title: "提示", description: "请先选择数据源" })
       return
     }
+    setIsSupplementSourceSelectorOpen(true)
+  }
+
+  const handleSupplementSourceTableSelect = async (schema: string, tableName: string, tableComment: string) => {
+    if (!schema) {
+      toast({ variant: "destructive", title: "提示", description: "请先选择模式名" })
+      return
+    }
+    setIsSupplementSourceSelectorOpen(false)
+
     const defaultFields: TableField[] = [
       {
         name: 'id',
@@ -907,16 +839,49 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
         precision: '',
       }
     ]
+
+    setSupplementFromSource(true)
     setEditingSupplementTable({
-      tableName: '',
-      chineseName: '',
+      tableName: tableName,
+      chineseName: tableComment || '',
       description: '',
-      schema: '',
+      schema: schema,
       fields: defaultFields,
       dsCode: selectedSource.id as string,
     })
+    setLoadingSupplementFields(true)
     setTimeout(() => setIsAddSupplementDialogOpen(true), 0)
-    await loadSchemas()
+
+    // Auto-query table structure and populate fields
+    if (isSdkAvailable()) {
+      try {
+        const fields = await queryTableStructure(selectedSource, schema, tableName)
+        if (fields && fields.length > 0) {
+          const sourceFields: TableField[] = fields.map(f => {
+            const normalized = withFieldDefaults(f)
+            return {
+              ...normalized,
+              dateFormat: normalized.type === '日期' ? 'yyyy-MM-dd' : normalized.dateFormat,
+            }
+          })
+          setEditingSupplementTable(prev => prev ? ({
+            ...prev,
+            fields: [...defaultFields, ...sourceFields]
+          }) : null)
+        }
+      } catch (error) {
+        console.error('[TableManagement] 获取表结构失败:', error)
+        toast({
+          variant: "destructive",
+          title: "获取表结构失败",
+          description: (error as Error).message
+        })
+      } finally {
+        setLoadingSupplementFields(false)
+      }
+    } else {
+      setLoadingSupplementFields(false)
+    }
   }
 
   const handleSaveSupplementTable = async () => {
@@ -1225,6 +1190,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
 
   const handleOpenSupplementDetail = async (table: TableInfo) => {
     setSupplementTableReadOnly(true)
+    setSupplementFromSource(false)
     if (isSdkAvailable() && table.id) {
       try {
         const detail = await querySupplementTableDetail(table.id)
@@ -1431,104 +1397,29 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
         />
       )}
 
-      {/* 添加表对话框 */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-[700px] h-[600px] p-0 flex flex-col overflow-hidden">
-          <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0">
-            <DialogTitle>选择源表</DialogTitle>
-          </DialogHeader>
+      {/* 添加数据集 - 选择源表对话框 */}
+      <SourceTableSelector
+        open={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        selectedSource={selectedSource}
+        showSqlMode={true}
+        onSelectTable={(schema, tableName, tableComment) => {
+          handleSelectTableRow(tableName, schema, tableComment)
+        }}
+        onConfirmSql={(schema) => {
+          setSelectedSchema(schema)
+          handleConfirmAddTable(schema)
+        }}
+      />
 
-          <div className="flex-1 flex flex-col min-h-0 px-6">
-            <div className="pb-3 space-y-3 flex-shrink-0">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Label className="w-14 text-right">模式名</Label>
-                  <Select value={selectedSchema} onValueChange={(value) => { setSelectedSchema(value); setCurrentPage(1) }} disabled={loadingSchemas}>
-                    <SelectTrigger className="h-9 flex-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {schemas.map(schema => (
-                        <SelectItem key={schema} value={schema}>{schema}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <RadioGroup value={addTableMode} onValueChange={(value) => { setAddTableMode(value); if (value === 'table' && schemas.length === 0) { loadSchemas() } }} className="flex items-center gap-4 pl-[4rem]">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="table" id="r-table" />
-                    <Label htmlFor="r-table">源表</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="sql" id="r-sql" />
-                    <Label htmlFor="r-sql">SQL</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              {addTableMode === 'table' && (
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="搜索" value={tableSearchText} onChange={(e) => { setTableSearchText(e.target.value); setDialogPage(1) }} className="pl-9 h-9" />
-                </div>
-              )}
-            </div>
-
-            {addTableMode === 'table' ? (
-              <>
-                <div className="flex-1 overflow-auto border rounded-md min-h-0">
-                  {loadingDbTables ? (
-                    <div className="flex items-center justify-center py-8 text-muted-foreground">加载中...</div>
-                  ) : (
-                    <Table className="w-full">
-                      <TableHeader className="sticky top-0 bg-background z-10">
-                        <TableRow>
-                          <TableHead>表名</TableHead>
-                          <TableHead>中文名</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {paginatedTables.map((table) => (
-                          <TableRow key={table.name} className={`cursor-pointer ${selectedTableName === table.name ? 'bg-muted' : 'hover:bg-muted/50'}`} onClick={() => handleSelectTableRow(table.name)}>
-                            <TableCell className="font-mono text-sm">{table.name}</TableCell>
-                            <TableCell className="text-sm">{table.comment}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </div>
-
-                <div className="py-3 flex items-center justify-between text-sm flex-shrink-0">
-                  <div className="text-muted-foreground">共{filteredTables.length}条</div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setDialogPage(p => Math.max(1, p - 1))} disabled={dialogPage === 1}>上一页</Button>
-                    <span className="text-muted-foreground">{dialogPage} / {dialogTotalPages || 1}</span>
-                    <Button variant="outline" size="sm" onClick={() => setDialogPage(p => Math.min(dialogTotalPages, p + 1))} disabled={dialogPage >= dialogTotalPages}>下一页</Button>
-                    <Select value={dialogPageSize.toString()} onValueChange={(value) => { setDialogPageSize(Number(value)); setDialogPage(1) }}>
-                      <SelectTrigger className="w-24 h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="50">50条/页</SelectItem>
-                        <SelectItem value="100">100条/页</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex-1"></div>
-            )}
-          </div>
-
-          <DialogFooter className="px-6 py-4 border-t flex-shrink-0">
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>关 闭</Button>
-            {addTableMode === 'sql' && (
-              <Button onClick={handleConfirmAddTable} disabled={!selectedSchema}>下一步</Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* 新增数据补录 - 选择源表对话框 */}
+      <SourceTableSelector
+        open={isSupplementSourceSelectorOpen}
+        onOpenChange={setIsSupplementSourceSelectorOpen}
+        selectedSource={selectedSource}
+        showSqlMode={false}
+        onSelectTable={handleSupplementSourceTableSelect}
+      />
 
       {/* 表结构对话框 */}
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
@@ -1731,7 +1622,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
               <div className="grid grid-cols-3 gap-4">
                 <div className="flex items-center gap-2">
                   <Label className="w-14 text-right">模式名</Label>
-                  {supplementTableReadOnly ? (
+                  {(supplementTableReadOnly || supplementFromSource) ? (
                     <div className="flex-1 h-9 flex items-center px-3 bg-muted rounded-md text-sm">{editingSupplementTable?.schema || ''}</div>
                   ) : (
                     <Select value={editingSupplementTable?.schema || ''} onValueChange={(value) => { setEditingSupplementTable(prev => prev ? ({ ...prev, schema: value }) : null) }} disabled={loadingSchemas}>
@@ -1744,7 +1635,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-14 text-right">表名</Label>
-                  <Input value={editingSupplementTable?.tableName || ''} onChange={(e) => { setEditingSupplementTable(prev => prev ? ({ ...prev, tableName: e.target.value }) : null) }} placeholder="输入表名" className="flex-1" readOnly={supplementTableReadOnly} />
+                  <Input value={editingSupplementTable?.tableName || ''} onChange={(e) => { setEditingSupplementTable(prev => prev ? ({ ...prev, tableName: e.target.value }) : null) }} placeholder="输入表名" className="flex-1" readOnly={supplementTableReadOnly || supplementFromSource} />
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-14 text-right">中文名</Label>
@@ -1760,7 +1651,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
               <div className="flex-1 flex flex-col min-h-0 space-y-2">
                 <div className="flex items-center justify-between flex-shrink-0">
                   <Label className="text-sm font-medium">表结构</Label>
-                  {!supplementTableReadOnly && (
+                  {!supplementTableReadOnly && !supplementFromSource && (
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => {
                         if (!editingSupplementTable?.fields) return
@@ -1786,15 +1677,6 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
                         }
                         if (changed) { setEditingSupplementTable({ ...editingSupplementTable, fields: newFields }) }
                       }}><ArrowDown className="h-4 w-4 mr-1" />下移</Button>
-                      <Button size="sm" onClick={() => {
-                        const existingFields = editingSupplementTable?.fields || []
-                        const existingNames = new Set(existingFields.map(f => f.name))
-                        let fieldNum = 1
-                        let defaultName = `C${fieldNum}`
-                        while (existingNames.has(defaultName)) { fieldNum++; defaultName = `C${fieldNum}` }
-                        const newField: TableField = { name: defaultName, type: '文本', comment: '', fieldType: '属性', category: '', dateFormat: '', primaryKey: false, sortDirection: 'asc', selected: false, length: '', precision: '' }
-                        setEditingSupplementTable(prev => prev ? ({ ...prev, fields: [...(prev.fields || []), newField] }) : null)
-                      }}><Plus className="h-4 w-4 mr-1" />添加字段</Button>
                     </div>
                   )}
                 </div>
@@ -1828,12 +1710,12 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
                               const newFields = [...(editingSupplementTable?.fields || [])]
                               newFields[index] = { ...newFields[index], name: e.target.value }
                               setEditingSupplementTable(editingSupplementTable ? { ...editingSupplementTable, fields: newFields } : null)
-                            }} className="h-8" placeholder="字段名" readOnly={field.isDefault || supplementTableReadOnly} />
+                            }} className="h-8" placeholder="字段名" readOnly={field.isDefault || supplementTableReadOnly || supplementFromSource} />
                           </TableCell>
                           <TableCell className="p-2">
                             <Select value={field.type || '文本'} onValueChange={(value) => {
                               const newFields = [...(editingSupplementTable?.fields || [])]
-                              newFields[index] = { ...newFields[index], type: value, dateFormat: value === '日期' ? (field.dateFormat || 'yyyyMMdd') : '' }
+                              newFields[index] = { ...newFields[index], type: value, dateFormat: value === '日期' ? (field.dateFormat || 'yyyy-MM-dd') : '' }
                               setEditingSupplementTable(editingSupplementTable ? { ...editingSupplementTable, fields: newFields } : null)
                             }} disabled={field.isDefault || supplementTableReadOnly}>
                               <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
@@ -1872,9 +1754,14 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
                           )}
                         </TableRow>
                       ))}
-                      {(!editingSupplementTable?.fields || editingSupplementTable.fields.length === 0) && (
+                      {loadingSupplementFields && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center text-muted-foreground py-4">暂无字段，点击"添加字段"按钮添加</TableCell>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-4">正在加载表结构...</TableCell>
+                        </TableRow>
+                      )}
+                      {!loadingSupplementFields && (!editingSupplementTable?.fields || editingSupplementTable.fields.length === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-4">暂无字段</TableCell>
                         </TableRow>
                       )}
                     </TableBody>
@@ -1885,8 +1772,8 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
           </div>
 
           <DialogFooter className="px-6 py-3 border-t flex-shrink-0">
-            <Button variant="outline" onClick={() => { setIsAddSupplementDialogOpen(false); setSupplementTableReadOnly(false) }} disabled={supplementSaving}>{supplementTableReadOnly ? '关闭' : '取消'}</Button>
-            <Button onClick={handleSaveSupplementTable} disabled={supplementSaving}>{supplementSaving ? '保存中...' : '保存'}</Button>
+            <Button variant="outline" onClick={() => { setIsAddSupplementDialogOpen(false); setSupplementTableReadOnly(false); setSupplementFromSource(false) }} disabled={supplementSaving}>{supplementTableReadOnly ? '关闭' : '取消'}</Button>
+            <Button onClick={handleSaveSupplementTable} disabled={supplementSaving || loadingSupplementFields}>{supplementSaving ? '保存中...' : '保存'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
