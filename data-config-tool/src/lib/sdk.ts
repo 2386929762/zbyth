@@ -782,25 +782,19 @@ export const importSupplementData = async (params: { code: string | number; cont
   const sdk = getValidSdk();
 
   try {
-    const url = sdk.getSdkEndpoint('/wp-core/api/callButton2')
-    const payload = {
+    const callParams = {
       panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
       buttonName: 'importSupplementData',
-      buttonParam: params,
-    }
+      buttonParam: params
+    };
 
-    // console.log('[SDK] 导入数据参数:', payload)
-    const response = await sdk.request(url, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-
-    const result = await response.json()
-    // console.log('[SDK] 导入数据结果:', result)
-    return result
+    // console.log('[SDK] 导入数据参数:', callParams);
+    const result = await sdk.api.callButton(callParams);
+    // console.log('[SDK] 导入数据结果:', result);
+    return result;
   } catch (error) {
-    console.error('[SDK] 导入数据失败:', (error as Error).message)
-    throw error
+    console.error('[SDK] 导入数据失败:', error);
+    throw error;
   }
 };
 
@@ -814,23 +808,17 @@ export const querySupplementData = async (params: {
   const sdk = getValidSdk();
 
   try {
-    const url = sdk.getSdkEndpoint('/wp-core/api/callButton2')
-    const payload = {
+    const callParams = {
       panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
       buttonName: 'querySupplementData',
-      buttonParam: params,
-    }
+      buttonParam: params
+    };
 
-    const response = await sdk.request(url, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-
-    const result = await response.json()
-    return result
+    const result = await sdk.api.callButton(callParams);
+    return result;
   } catch (error) {
-    console.error('[SDK] 查询补录数据失败:', (error as Error).message)
-    throw error
+    console.error('[SDK] 查询补录数据失败:', error);
+    throw error;
   }
 };
 

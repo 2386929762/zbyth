@@ -151,6 +151,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
   const [uploadDataDate, setUploadDataDate] = useState<Date | undefined>(undefined)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadOperator, setUploadOperator] = useState('')
   const uploadFileInputRef = useRef<HTMLInputElement>(null)
 
   // 左侧表列表状态
@@ -1051,6 +1052,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
   const handleOpenUploadDialog = () => {
     setUploadDataDate(undefined)
     setUploadFile(null)
+    setUploadOperator('')
     setIsUploadDialogOpen(true)
   }
 
@@ -1855,6 +1857,17 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
             <div className="flex items-center gap-2">
               <Label className="w-20 text-right">数据日期</Label>
               <DatePicker date={uploadDataDate} onDateChange={setUploadDataDate} placeholder="选择数据日期" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="w-20 text-right">操作员</Label>
+              <Select value={uploadOperator} onValueChange={setUploadOperator}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="选择操作员" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* 内容待填充 */}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex items-center gap-2">
               <Label className="w-20 text-right">选择文件</Label>
