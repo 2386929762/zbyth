@@ -790,7 +790,7 @@ export const importSupplementData = async (params: {
   content: string; 
   dataDate: string;
   isCurrUser: boolean;
-  operator?: string;
+  opUser?: string;
 }): Promise<SdkResult> => {
   const sdk = getValidSdk();
 

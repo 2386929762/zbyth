@@ -1110,7 +1110,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
             content: base64String,
             dataDate: dataDateStr,
             isCurrUser: uploadIsSelf,
-            operator: uploadOperator?.code
+            opUser: uploadOperator?.userName
           })
           toast({
             title: "上传成功",
