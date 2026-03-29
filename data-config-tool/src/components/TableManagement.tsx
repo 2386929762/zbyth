@@ -1106,7 +1106,15 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
       const reader = new FileReader()
       reader.onload = async (event) => {
         const arrayBuffer = event.target?.result as ArrayBuffer
-        if (!arrayBuffer) return
+        if (!arrayBuffer) {
+          setSupplementSaving(false)
+          toast({
+            variant: "destructive",
+            title: "处理失败",
+            description: "无法读取文件内容"
+          })
+          return
+        }
 
         const bytes = new Uint8Array(arrayBuffer)
         let binary = ''
@@ -1128,6 +1136,10 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
             description: "数据已成功上传"
           })
           setIsUploadDialogOpen(false)
+          setUploadFile(null)
+          if (uploadFileInputRef.current) {
+            uploadFileInputRef.current.value = ''
+          }
           loadSupplementData()
         } catch (error) {
           console.error('[TableManagement] 上传数据失败:', error)
@@ -1139,6 +1151,18 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
         } finally {
           setSupplementSaving(false)
         }
+      }
+      reader.onerror = () => {
+        setSupplementSaving(false)
+        setUploadFile(null)
+        if (uploadFileInputRef.current) {
+          uploadFileInputRef.current.value = ''
+        }
+        toast({
+          variant: "destructive",
+          title: "读取失败",
+          description: "文件读取过程中发生错误"
+        })
       }
       reader.readAsArrayBuffer(uploadFile)
     } catch (error) {
