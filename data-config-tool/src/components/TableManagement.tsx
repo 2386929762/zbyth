@@ -1062,7 +1062,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
     setUploadDataDate(undefined)
     setUploadFile(null)
     setUploadOperator(null)
-    setUploadIsSelf(false)
+    setUploadIsSelf(true)
     setIsUploadDialogOpen(true)
   }
 
@@ -1086,6 +1086,15 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
         variant: "destructive",
         title: "校验失败",
         description: "请选择要上传的文件"
+      })
+      return
+    }
+
+    if (!uploadIsSelf && !uploadOperator) {
+      toast({
+        variant: "destructive",
+        title: "校验失败",
+        description: "请选择操作员或勾选'自己'"
       })
       return
     }
