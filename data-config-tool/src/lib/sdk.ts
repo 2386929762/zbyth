@@ -55,6 +55,12 @@ export interface CategoryOption {
   label: string;
 }
 
+export interface User {
+  code: string;
+  userName: string;
+  fullName: string;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SdkResult = Record<string, any>;
 
@@ -85,7 +91,8 @@ export const PANEL_CODES = {
   TABLE: 'IML_00003',
   SQL_TOOL: 'IML_00009',
   DICTIONARY: 'IML_00011',
-  SUPPLEMENT_TABLE: 'IML_00028'
+  SUPPLEMENT_TABLE: 'IML_00028',
+  EX_USER: 'IML_00025'
 } as const;
 
 export const normalizeFieldCategory = (fieldType: string): string => {
@@ -733,7 +740,7 @@ export const saveSupplementTable = async (table: TableInfo): Promise<SdkResult> 
 
     const params = {
       panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
-      buttonName: '保存补录数据表',
+      buttonName: 'designer_save',
       formData
     };
 
@@ -778,7 +785,13 @@ export const getSqlStruct = async (dstype: string, dsname: string, sql: string):
   }
 };
 
-export const importSupplementData = async (params: { code: string | number; content: string; dataDate: string }): Promise<SdkResult> => {
+export const importSupplementData = async (params: { 
+  code: string | number; 
+  content: string; 
+  dataDate: string;
+  isCurrUser: boolean;
+  operator?: string;
+}): Promise<SdkResult> => {
   const sdk = getValidSdk();
 
   try {
@@ -794,6 +807,45 @@ export const importSupplementData = async (params: { code: string | number; cont
     return result;
   } catch (error) {
     console.error('[SDK] 导入数据失败:', error);
+    throw error;
+  }
+};
+
+export const queryUserList = async (keyword: string | null = null, pageNo = 1, pageSize = 100000): Promise<{ list: User[]; totalSize: number }> => {
+  const sdk = getValidSdk();
+
+  try {
+    const params: SdkResult = {
+      panelCode: PANEL_CODES.EX_USER,
+      condition: {},
+      pageNo,
+      pageSize,
+      orderBy: [{'fieldName': 'code'}],
+      options: {
+        "includeFields": ["name", "fullName"]
+      }
+    };
+
+    if (keyword) {
+      params.keyword = keyword;
+    }
+
+    const result = await sdk.api.queryFormDataList(params) as SdkResult;
+
+    if (result && result.data) {
+      const list: User[] = (result.data.list || []).map((item: SdkResult) => ({
+        code: item['编号'] || '',
+        userName: item['name'] || '',
+        fullName: item['fullName'] || ''
+      }));
+      return {
+        list,
+        totalSize: result.data.totalSize || 0
+      };
+    }
+    return { list: [], totalSize: 0 };
+  } catch (error) {
+    console.error('[SDK] 查询用户列表失败:', error);
     throw error;
   }
 };
@@ -875,5 +927,6 @@ export default {
   normalizeDbType,
   normalizeFieldCategory,
   importSupplementData,
-  exportSupplementDataTemplate
+  exportSupplementDataTemplate,
+  queryUserList
 };

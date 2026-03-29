@@ -39,15 +39,17 @@ import {
 import { DatePicker } from '@/components/ui/date-picker'
 import {
   isSdkAvailable,
+  queryDataSourceList,
   queryTableList,
-  queryTableDetail,
   querySupplementTableList,
-  querySupplementTableDetail,
   saveTable,
   deleteTable,
   saveSupplementTable,
+  queryTableDetail,
+  querySupplementTableDetail,
   queryDictionaryCategories,
   querySchemaList,
+  queryDbTableList,
   queryTableStructure,
   getSqlStruct,
   normalizeDbType,
@@ -58,10 +60,13 @@ import {
   type DataSource,
   type TableInfo,
   type TableField,
+  type DbTableInfo,
   type CategoryOption,
+  type User,
 } from '@/lib/sdk'
 import { useToast } from "@/hooks/use-toast"
 import { SourceTableSelector } from '@/components/SourceTableSelector'
+import { UserSelector } from '@/components/UserSelector'
 
 // Suppress unused import warnings for components used in JSX
 void Tooltip
@@ -151,7 +156,9 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
   const [uploadDataDate, setUploadDataDate] = useState<Date | undefined>(undefined)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [uploadOperator, setUploadOperator] = useState('')
+  const [uploadOperator, setUploadOperator] = useState<User | null>(null)
+  const [uploadIsSelf, setUploadIsSelf] = useState(false)
+  const [isUserSelectorOpen, setIsUserSelectorOpen] = useState(false)
   const uploadFileInputRef = useRef<HTMLInputElement>(null)
 
   // 左侧表列表状态
@@ -1052,7 +1059,8 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
   const handleOpenUploadDialog = () => {
     setUploadDataDate(undefined)
     setUploadFile(null)
-    setUploadOperator('')
+    setUploadOperator(null)
+    setUploadIsSelf(false)
     setIsUploadDialogOpen(true)
   }
 
@@ -1100,7 +1108,9 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
           const result = await importSupplementData({
             code: importTableId!,
             content: base64String,
-            dataDate: dataDateStr
+            dataDate: dataDateStr,
+            isCurrUser: uploadIsSelf,
+            operator: uploadOperator?.code
           })
           toast({
             title: "上传成功",
@@ -1860,14 +1870,30 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
             </div>
             <div className="flex items-center gap-2">
               <Label className="w-20 text-right">操作员</Label>
-              <Select value={uploadOperator} onValueChange={setUploadOperator}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="选择操作员" />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* 内容待填充 */}
-                </SelectContent>
-              </Select>
+              <div className="flex-1 flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    id="uploadIsSelf" 
+                    checked={uploadIsSelf} 
+                    onCheckedChange={(checked) => {
+                      setUploadIsSelf(checked === true)
+                      if (checked) {
+                        setUploadOperator(null)
+                      }
+                    }}
+                  />
+                  <Label htmlFor="uploadIsSelf" className="cursor-pointer">自己</Label>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsUserSelectorOpen(true)}
+                  disabled={uploadIsSelf}
+                  className="flex-1 justify-start"
+                >
+                  {uploadOperator ? `${uploadOperator.fullName} (${uploadOperator.userName})` : '选择操作员'}
+                </Button>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Label className="w-20 text-right">选择文件</Label>
@@ -1898,6 +1924,13 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 用户选择对话框 */}
+      <UserSelector
+        open={isUserSelectorOpen}
+        onOpenChange={setIsUserSelectorOpen}
+        onSelectUser={(user) => setUploadOperator(user)}
+      />
     </div>
   )
 }

@@ -21,6 +21,7 @@ interface PaginationBarProps {
     pageSize: number
     onPageChange: (page: number) => void
     onPageSizeChange: (size: string) => void
+    showPageNumbers?: boolean
 }
 
 export function PaginationBar({
@@ -28,7 +29,8 @@ export function PaginationBar({
     currentPage,
     pageSize,
     onPageChange,
-    onPageSizeChange
+    onPageSizeChange,
+    showPageNumbers = true
 }: PaginationBarProps) {
     const totalPages = Math.ceil(totalSize / pageSize)
 
@@ -47,7 +49,7 @@ export function PaginationBar({
                     </PaginationItem>
 
                     {/* 页码 */}
-                    {(() => {
+                    {showPageNumbers && (() => {
                         const pages: (number | string)[] = []
 
                         if (totalPages <= 7) {
