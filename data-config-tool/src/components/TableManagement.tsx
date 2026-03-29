@@ -850,13 +850,15 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
       try {
         const fields = await queryTableStructure(selectedSource, schema, tableName)
         if (fields && fields.length > 0) {
-          const sourceFields: TableField[] = fields.map(f => {
-            const normalized = withFieldDefaults(f)
-            return {
-              ...normalized,
-              dateFormat: normalized.type === '日期' ? 'yyyy-MM-dd' : normalized.dateFormat,
-            }
-          })
+          const sourceFields: TableField[] = fields
+            .filter(f => f.name !== 'id' && f.name !== 'operator' && f.name !== 'data_date')
+            .map(f => {
+              const normalized = withFieldDefaults(f)
+              return {
+                ...normalized,
+                dateFormat: normalized.type === '日期' ? 'yyyy-MM-dd' : normalized.dateFormat,
+              }
+            })
           setEditingSupplementTable(prev => prev ? ({
             ...prev,
             fields: [...defaultFields, ...sourceFields]
