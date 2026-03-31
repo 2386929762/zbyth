@@ -569,7 +569,7 @@ export const queryDbTableList = async (dataSource: DataSource, schemaName: strin
         dstype: dataSource.type,
         name: '表sql',
         dsname: dataSource.name,
-        regexMap: { '$scheme_name$': schemaName }
+        regexMap: { '$scheme_name$': schemaName, '$schema_name$': schemaName }
       }
     };
 

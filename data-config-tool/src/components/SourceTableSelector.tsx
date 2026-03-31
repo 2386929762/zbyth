@@ -69,14 +69,16 @@ export function SourceTableSelector({
   // Load schemas when dialog opens
   useEffect(() => {
     if (open) {
-      setSelectedSchema('')
       setTableSearchText('')
       setDialogPage(1)
+      setAddTableMode('table')
+      loadSchemas()
+    } else {
+      // Clear all state when dialog closes
+      setSelectedSchema('')
       setSchemas([])
       setTablesFromDb([])
-      setAddTableMode('table')
       lastLoadedDialogSchemaRef.current = null
-      loadSchemas()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -90,7 +92,7 @@ export function SourceTableSelector({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSchema, open, addTableMode])
+  }, [selectedSchema, addTableMode])
 
   const loadSchemas = async () => {
     if (!selectedSource || !isSdkAvailable()) return
