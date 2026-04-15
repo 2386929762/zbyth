@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>数据补录</title>
+  <script src="./preload.js" devSdkUrl="https://demo.kwaidoo.com/zbyth/process/wp-core/api/getPanelXSdk"></script>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <script type="module">
+
+    import { PANEL_CODES } from '/src/lib/sdk.js';
+
+    // SDK 配置
+    window.SDK_CONFIG = {
+      devDefaultBaseUrl: 'https://demo.kwaidoo.com/zbyth/process/',
+      busDomainCode: 'OctoCM_BDYTH',
+      // 数据源管理 panelCode
+      dataSourcePanelCode: PANEL_CODES.DATA_SOURCE,
+      // 表管理 panelCode
+      tablePanelCode: PANEL_CODES.TABLE
+    };
+
+    // 等待 PanelXSdk 类加载完成后再初始化
+    (async function initSDK() {
+      // 检查 PanelXSdk 是否已加载
+      if (typeof PanelXSdk !== 'undefined') {
+        try {
+          // 初始化 SDK
+          window.panelxSdk = new PanelXSdk({
+            devDefaultBaseUrl: window.SDK_CONFIG.devDefaultBaseUrl,
+            busDomainCode: window.SDK_CONFIG.busDomainCode
+          });
+          console.log('[SDK] PanelX SDK 初始化成功');
+
+          // 执行登录检查
+          await window.panelxSdk.ensureLogin(
+            {
+              userName: 'admin',
+              password: '123456'
+            }
+          );
+
+          // 所有流程通过，触发事件
+          window.sdkLoggedIn = true;
+          window.dispatchEvent(new CustomEvent('sdkReady'));
+          window.dispatchEvent(new Event('sdkLoggedIn'));
+
+        } catch (error) {
+          console.error('[SDK] 初始化或登录失败', error);
+          alert('登录失败: ' + (error.message || '未知错误'));
+          throw error;
+        }
+      } else {
+        // 如果还未加载，100ms 后重试
+        setTimeout(initSDK, 100);
+      }
+    })();
+  </script>
+
+  <script type="module" src="/src/supplement-main.tsx"></script>
+</body>
+
+</html>

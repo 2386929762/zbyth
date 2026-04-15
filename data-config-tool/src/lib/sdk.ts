@@ -907,6 +907,48 @@ export const exportSupplementDataTemplate = async (params: { code: string | numb
   }
 };
 
+export const queryDataSupplementTablesOfReport = async (code: string): Promise<{ list: TableInfo[]; totalSize: number }> => {
+  const sdk = getValidSdk();
+
+  try {
+    const url = sdk.getSdkEndpoint('/wp-core/api/callButton2')
+    const payload = {
+      panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
+      buttonName: 'queryDataSupplementTablesOfReport',
+      buttonParam: {
+        code
+      }
+    }
+
+    const response = await sdk.request(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+
+    const result = await response.json()
+
+    if (result && result.data) {
+      const list: TableInfo[] = (result.data.list || []).map((item: SdkResult) => ({
+        id: item['编号'],
+        schema: item['模式名'] || '',
+        tableName: item['表名'] || '',
+        chineseName: item['中文名'] || '',
+        description: item['描述'] || '',
+        dsCode: item['dsCode'] || '',
+        fields: [],
+      }));
+      return {
+        list,
+        totalSize: result.data.totalSize || 0
+      };
+    }
+    return { list: [], totalSize: 0 };
+  } catch (error) {
+    console.error('[SDK] 查询报告数据补录表列表失败:', error);
+    throw error;
+  }
+};
+
 export default {
   isSdkAvailable,
   queryDataSourceList,
@@ -928,5 +970,6 @@ export default {
   normalizeFieldCategory,
   importSupplementData,
   exportSupplementDataTemplate,
-  queryUserList
+  queryUserList,
+  queryDataSupplementTablesOfReport
 };
