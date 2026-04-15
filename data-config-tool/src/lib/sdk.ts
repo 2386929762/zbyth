@@ -87,6 +87,7 @@ const TYPE_MAP: Record<string, string[]> = {
 };
 
 export const PANEL_CODES = {
+  REPORT: 'IML_00001',
   DATA_SOURCE: 'IML_00005',
   TABLE: 'IML_00003',
   SQL_TOOL: 'IML_00009',
@@ -907,14 +908,14 @@ export const exportSupplementDataTemplate = async (params: { code: string | numb
   }
 };
 
-export const queryDataSupplementTablesOfReport = async (code: string): Promise<{ list: TableInfo[]; totalSize: number }> => {
+export const queryReportSupplementTables = async (code: string): Promise<{ list: TableInfo[]; totalSize: number }> => {
   const sdk = getValidSdk();
 
   try {
     const url = sdk.getSdkEndpoint('/wp-core/api/callButton2')
     const payload = {
-      panelCode: PANEL_CODES.SUPPLEMENT_TABLE,
-      buttonName: 'queryDataSupplementTablesOfReport',
+      panelCode: PANEL_CODES.REPORT,
+      buttonName: 'queryReportSupplementTables',
       buttonParam: {
         code
       }
@@ -971,5 +972,5 @@ export default {
   importSupplementData,
   exportSupplementDataTemplate,
   queryUserList,
-  queryDataSupplementTablesOfReport
+  queryReportSupplementTables
 };

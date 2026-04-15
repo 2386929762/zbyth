@@ -3,7 +3,7 @@ import { DataSupplementList } from '@/components/DataSupplementList'
 import { PaginationBar } from '@/components/PaginationBar'
 import {
   isSdkAvailable,
-  queryDataSupplementTablesOfReport,
+  queryReportSupplementTables,
   type TableInfo,
 } from '@/lib/sdk'
 import { useToast } from "@/hooks/use-toast"
@@ -37,7 +37,7 @@ export function SupplementPage() {
     setLoading(true)
     try {
       if (isSdkAvailable()) {
-        const result = await queryDataSupplementTablesOfReport(code)
+        const result = await queryReportSupplementTables(code)
         setSupplementTables(result.list || [])
         setTotalItems(result.totalSize || 0)
       }

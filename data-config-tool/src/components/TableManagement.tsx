@@ -1332,7 +1332,7 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-14 text-right">表名</Label>
-                  <Input value={editingSupplementTable?.tableName || ''} onChange={(e) => { setEditingSupplementTable(prev => prev ? ({ ...prev, tableName: e.target.value }) : null) }} placeholder="输入表名" className="flex-1" readOnly={supplementTableReadOnly || supplementFromSource} />
+                  <Input value={editingSupplementTable?.tableName || ''} onChange={(e) => { setEditingSupplementTable(prev => prev ? ({ ...prev, tableName: e.target.value }) : null) }} placeholder="输入表名" className="flex-1" readOnly={supplementFromSource} />
                 </div>
                 <div className="flex items-center gap-2">
                   <Label className="w-14 text-right">中文名</Label>
