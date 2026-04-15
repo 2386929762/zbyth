@@ -24,15 +24,11 @@ export function SupplementPage() {
     const params = new URLSearchParams(window.location.search)
     const codeParam = params.get('code')
     if (!codeParam) {
-      toast({
-        variant: "destructive",
-        title: "参数错误",
-        description: "URL 中缺少 code 参数"
-      })
+      setCode(null)
       return
     }
     setCode(codeParam)
-  }, [toast])
+  }, [])
 
   // 加载数据补录表列表
   const loadSupplementTables = async () => {
@@ -90,16 +86,24 @@ export function SupplementPage() {
 
       {/* Content */}
       <div className="flex-1 flex flex-col overflow-hidden p-4">
-        {loading && supplementTables.length === 0 && (
+        {code === null ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="text-center space-y-3">
+              <div className="text-destructive text-lg font-semibold">参数错误</div>
+              <div className="text-muted-foreground">URL 中缺少 code 参数</div>
+            </div>
+          </div>
+        ) : loading && supplementTables.length === 0 ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
             加载中...
           </div>
+        ) : (
+          <DataSupplementList
+            supplementTables={supplementTables}
+            loading={loading}
+            onRefresh={loadSupplementTables}
+          />
         )}
-        <DataSupplementList
-          supplementTables={supplementTables}
-          loading={loading}
-          onRefresh={loadSupplementTables}
-        />
       </div>
 
       {/* 分页栏 */}
