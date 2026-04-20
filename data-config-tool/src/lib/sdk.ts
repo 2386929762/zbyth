@@ -818,12 +818,11 @@ export const queryUserList = async (keyword: string | null = null, pageNo = 1, p
   try {
     const params: SdkResult = {
       panelCode: PANEL_CODES.EX_USER,
-      condition: {},
-      pageNo,
-      pageSize,
-      orderBy: [{'fieldName': 'code'}],
-      options: {
-        "includeFields": ["name", "fullName"]
+      buttonName: 'queryUsers',
+      buttonParam: {
+        keyword: keyword || '',
+        pageNo: pageNo || 1,
+        pageSize: pageSize || 20
       }
     };
 
@@ -831,7 +830,7 @@ export const queryUserList = async (keyword: string | null = null, pageNo = 1, p
       params.keyword = keyword;
     }
 
-    const result = await sdk.api.queryFormDataList(params) as SdkResult;
+    const result = await sdk.api.callButton(params) as SdkResult;
 
     if (result && result.data) {
       const list: User[] = (result.data.list || []).map((item: SdkResult) => ({
