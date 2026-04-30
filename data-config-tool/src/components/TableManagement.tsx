@@ -511,19 +511,54 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
       return
     }
 
-    const paramRegex = /\$([a-zA-Z0-9_\u4e00-\u9fa5]+)\$/g
+    const paramRegex = /\$([^$]+)\$/g
     const matches = Array.from(sqlContent.matchAll(paramRegex))
 
     if (matches.length > 0) {
-      const uniqueParams = [...new Set(matches.map(m => m[1]))]
-      const initialValues: Record<string, string> = {}
-      uniqueParams.forEach(p => {
-        initialValues[p] = cachedParamValues[p] !== undefined ? cachedParamValues[p] : "0"
-      })
+      const processParam = (rawParam: string): { param: string; isLiteral: boolean; literalValue?: string } => {
+        const trimmed = rawParam.trim()
+        const prefixMatch = trimmed.match(/^([a-zA-Z]+):(.*)$/)
+        
+        if (prefixMatch) {
+          const prefix = prefixMatch[1]
+          const value = prefixMatch[2].trim()
+          
+          if (prefix === 'T') {
+            return { param: '', isLiteral: true, literalValue: value }
+          }
+          
+          return { param: value, isLiteral: false }
+        }
+        
+        return { param: trimmed, isLiteral: false }
+      }
 
-      setDetectedParams(uniqueParams)
-      setParamValues(initialValues)
-      setIsParamDialogOpen(true)
+      const processedParams = matches.map(m => ({ raw: m[1], processed: processParam(m[1]) }))
+      const userInputParams = processedParams
+        .filter(p => !p.processed.isLiteral && p.processed.param)
+        .map(p => p.processed.param)
+      const uniqueParams = [...new Set(userInputParams)]
+
+      if (uniqueParams.length > 0) {
+        const initialValues: Record<string, string> = {}
+        uniqueParams.forEach(p => {
+          initialValues[p] = cachedParamValues[p] !== undefined ? cachedParamValues[p] : "0"
+        })
+
+        setDetectedParams(uniqueParams)
+        setParamValues(initialValues)
+        setIsParamDialogOpen(true)
+      } else {
+        let finalSql = sqlContent
+        processedParams.forEach(p => {
+          if (p.processed.isLiteral) {
+            const paramRegex = new RegExp(`\\\$\\s*${p.raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\\$`, 'g')
+            finalSql = finalSql.replace(paramRegex, p.processed.literalValue || '')
+          }
+        })
+        setFinalSqlContent(finalSql)
+        executeSql(finalSql)
+      }
     } else {
       setFinalSqlContent(sqlContent)
       executeSql(sqlContent)
@@ -532,9 +567,31 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
 
   const handleConfirmParams = () => {
     let finalSql = sqlContent
-    detectedParams.forEach(param => {
-      const val = paramValues[param] !== undefined ? paramValues[param] : "0"
-      finalSql = finalSql.replaceAll(`$${param}$`, val)
+    
+    const paramRegex = /\$([^$]+)\$/g
+    const matches = Array.from(sqlContent.matchAll(paramRegex))
+    
+    matches.forEach(match => {
+      const rawParam = match[1].trim()
+      const prefixMatch = rawParam.match(/^([a-zA-Z]+):(.*)$/)
+      
+      if (prefixMatch) {
+        const prefix = prefixMatch[1]
+        const value = prefixMatch[2].trim()
+        
+        if (prefix === 'T') {
+          const paramRegex = new RegExp(`\\\$\\s*${match[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\\$`, 'g')
+          finalSql = finalSql.replace(paramRegex, value)
+        } else {
+          const val = paramValues[value] !== undefined ? paramValues[value] : "0"
+          const paramRegex = new RegExp(`\\\$\\s*${match[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\\$`, 'g')
+          finalSql = finalSql.replace(paramRegex, val)
+        }
+      } else {
+        const val = paramValues[rawParam] !== undefined ? paramValues[rawParam] : "0"
+        const paramRegex = new RegExp(`\\\$\\s*${match[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\\$`, 'g')
+        finalSql = finalSql.replace(paramRegex, val)
+      }
     })
 
     setFinalSqlContent(finalSql)
@@ -1295,8 +1352,8 @@ export function TableManagement({ selectedSource, tables, setTables }: TableMana
           <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
             {detectedParams.map(param => (
               <div key={param} className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor={`param-${param}`} className="text-right">{param}</Label>
-                <Input id={`param-${param}`} value={paramValues[param] || ''} onChange={(e) => setParamValues({ ...paramValues, [param]: e.target.value })} className="col-span-3" />
+                <Label htmlFor={`param-${param}`} className="col-span-2 text-right truncate" title={param}>{param}</Label>
+                <Input id={`param-${param}`} value={paramValues[param] || ''} onChange={(e) => setParamValues({ ...paramValues, [param]: e.target.value })} className="col-span-2" />
               </div>
             ))}
           </div>
